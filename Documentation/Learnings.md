@@ -3,6 +3,16 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: asking before linking
+
+- **macOS has no notification style an app can choose.** Banners vs. persistent alerts is the
+  person's setting in System Settings; `UNNotificationSettings.alertStyle` only reads it. MediaLab's
+  on-top pairing prompt is its own floating window, not a notification. Poly asks with `NSAlert`
+  instead (no window of its own), which stays until answered.
+- **The passkey notification went away** untested: Magic accessories were never seen to ask for
+  one, and the delegate callback is now only logged ("pairing asked to type a passkey"). If that
+  line ever appears with no prompt on screen, the keyboard could not finish pairing.
+
 ## 2026-11-15: renaming
 
 - **A styled menu title drops the subtitle.** With `.foregroundStyle(.secondary)` on the title

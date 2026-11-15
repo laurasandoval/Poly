@@ -54,13 +54,14 @@ pairs while the keyboard finishes. A controller pages one device at a time, so t
 3. Answers but the bond is stale → forget it and wait 0.5 s (re-pairing inside the unbond window
    fails).
 4. Pair with `IOBluetoothDevicePair`: confirm numeric comparison, answer legacy PIN requests with
-   0000, and show keyboard passkeys in a notification. Pairing has no timeout of its own; stop it
+   0000, and only log a keyboard passkey request (none seen so far). Pairing has no timeout of its own; stop it
    after 60 s, or as soon as the monitor is unplugged. Connect once pairing finishes.
 
 Retry every second or so for two minutes, so clicking a sleeping mouse connects it within a few
 seconds; every 5 s up to ten minutes; every 20 s after that. After 20 s without an answer the
-accessory **needs a nudge**: the menu says so and one notification asks the person to click it,
-press a key, or switch it off and on.
+accessory **needs a nudge**: the menu says what to do (click it, press a key, or switch it off and
+on) and one notification says "Couldn’t connect to Magic Mouse" / "Poly will keep trying in the
+background." It goes away once the accessory connects.
 
 ### Unplugged: release
 
@@ -118,20 +119,37 @@ it then.
 
 ## Learning
 
-There is no setup. An Apple keyboard, mouse or trackpad that is connected while exactly one
-external monitor is plugged in belongs to that monitor from then on. The first time on each Mac,
-the person connects the accessories the old way (a cable, or Bluetooth settings), or installs Poly
-while they are already connected, and Poly takes over from there.
+Plugging into a monitor alone does nothing: a Mac may only be showing something on a hotel TV.
+When an Apple keyboard, mouse or trackpad is connected while exactly one external monitor is
+plugged in, Poly **asks** whether to link it to that monitor, with a standard alert that stays on
+screen until answered:
+
+- One accessory: "Link Magic Mouse to Home Office?" / "Your Mac will connect to Magic Mouse
+  automatically when it’s connected to Home Office." **Link** or **Don’t Link** (Escape).
+- Accessories that connect within a second of each other (by cable, or already connected when
+  Poly starts) share one alert, "Link Magic Keyboard and Magic Mouse to Home Office?", with a checkbox for each, all
+  checked, so a borrowed mouse can be left out. One that connects while an alert is open waits for
+  its own alert.
+- Don't Link, or an unchecked box, is remembered for that monitor on this Mac (`declined`), and
+  Poly does not ask about it again. While it is connected, the monitor's submenu offers **Link
+  Magic Mouse to Home Office**; this also covers a question the person never saw. A plugged-in
+  monitor with nothing linked yet appears in the menu while it has something to offer.
+- The alert brings Poly forward, taking keyboard focus; it only happens the first time an
+  accessory meets a monitor.
+
+The first time on each Mac, the person connects the accessories the old way (a cable, or
+Bluetooth settings), or installs Poly while they are already connected, and links them.
 
 - Apple accessories only: peripheral class (keyboard, pointing device or combo) and Apple's vendor
   ID from the Device ID record (Bluetooth SIG 0x004C or USB 0x05AC), or "Magic" in the name when
   the record is missing. AirPods, other brands and multi-host keyboards are never touched.
 - Mouse or trackpad comes from the product ID or the name.
-- An accessory belongs to one monitor. Connecting it while another monitor is plugged in moves it
-  there, except while its own monitor was just unplugged and its release is pending.
-- With several external monitors at once (a Sidecar iPad, AirPlay), nothing new is learned; known
+- An accessory belongs to one monitor. Connecting it while another monitor is plugged in asks to
+  link it there (moving it), except while its own monitor was just unplugged and its release is
+  pending.
+- With several external monitors at once (a Sidecar iPad, AirPlay), nothing is offered; linked
   monitors still work.
-- Learning updates names when accessories are renamed.
+- Saved names follow accessories renamed elsewhere.
 - Each Mac learns on its own. The list lives in that Mac's UserDefaults (`monitors`, JSON).
 
 ## Identifying monitors
@@ -146,11 +164,13 @@ real monitor.
 
 ## Interface
 
+All copy follows [the copy guide](Copy.md), which also lists every string.
+
 A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no windows, no settings.
 
 - One item per monitor, with its system icon (System Settings' own artwork: the Displays override
   table, then Finder's device types) and a subtitle: "Connected • 2 accessories" while plugged in
-  ("Connecting…" or "Needs a Nudge" in place of "Connected" when that applies), "Not Connected"
+  ("Connecting…" or "Couldn’t Connect" in place of "Connected" when that applies), "Not Connected"
   otherwise. Monitors with the same name are numbered
   ("Studio Display 2").
 - Inside each monitor, its accessories with the system's artwork for Magic Keyboard (Touch ID and
@@ -158,9 +178,10 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
   connection notices). Nothing is bundled; a missing image falls back to an SF Symbol. While the
   monitor is plugged in, the subtitle says "Connected", "Connecting…", or what to do when it needs
   a nudge; otherwise it says "Not Connected". Each accessory's submenu
-  offers **Rename…** and **Forget Accessory**, which also unpairs it from this Mac like Bluetooth
-  settings' Forget (otherwise it would be relearned the moment it reconnects). Each monitor's
-  submenu offers **Rename…**, and an unplugged monitor can be forgotten from it ("Forget Office").
+  offers **Rename…** and **Unlink from Home Office**, which stops managing it as if the person had
+  answered Don't Link; it stays paired and connected. Each monitor's submenu offers **Rename…** and,
+  with two or more accessories, **Unlink All Accessories**. A monitor left with no accessories is
+  no longer listed.
 - **Renaming** uses a standard alert with one text field. An accessory is renamed itself, like
   Bluetooth settings' Name field (IOBluetoothDevice's private `rename:`): at once when connected,
   otherwise the name waits (`pendingName`, shown in the menu meanwhile) and is given once, the
@@ -177,9 +198,8 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
 - Menu rows use `.labelStyle(.titleAndIcon)`: from macOS 26, menu item images are hidden unless
   their visibility preference says otherwise.
 
-Notifications (permission asked the first time Poly learns a monitor, when the person has a
-working keyboard and mouse): what Poly learned, a nudge for an accessory that does not answer, and
-a passkey to type when a keyboard asks for one.
+Notifications (permission asked at launch): only "Couldn't connect to …" for an accessory that
+does not answer. Everything uses the person's names for monitors and accessories.
 
 ## Platform
 
@@ -206,7 +226,7 @@ a passkey to type when a keyboard asks for one.
   them in that Mac's Bluetooth settings.
 - Two identical monitors whose serials macOS cannot read are indistinguishable.
 - An accessory connected while a Sidecar iPad or AirPlay screen is the only external display is
-  learned for it. Forget it from the menu if that was not meant.
+  offered for it; answer Don't Link.
 
 ## Diagnosing
 
@@ -219,11 +239,11 @@ sleep. See `Poly/System/Log.swift` for the command. Findings go in
 
 On two Macs with Poly and one monitor with a Magic Keyboard and Magic Mouse:
 
-1. First run on Mac A with the accessories connected: Poly asks for Bluetooth, learns the monitor
-   and posts "Poly knows Studio Display".
+1. First run on Mac A with the accessories connected: Poly asks for Bluetooth and notifications,
+   then one alert offers to link both to Studio Display; Link.
 2. Unplug A with the lid open: within a few seconds both accessories disconnect and disappear from
    A's Bluetooth settings.
-3. Plug in Mac B and connect the accessories once by cable: B learns them.
+3. Plug in Mac B and connect the accessories once by cable: B asks to link each; Link.
 4. Unplug B, plug A back in: A connects both without a cable. Clicking the mouse speeds it up.
 5. With A closed in clamshell, unplug: A sleeps; plug in B: B connects both.
 6. Leave A plugged in and let it idle-sleep: the keyboard still wakes it.
