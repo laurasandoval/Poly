@@ -124,14 +124,16 @@ real monitor.
 A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no windows, no settings.
 
 - One item per monitor, with its system icon (System Settings' own artwork: the Displays override
-  table, then Finder's device types). Its title adds "In Use", "Connecting…" or "Needs a Nudge"
-  while it is plugged in; monitors with the same name are numbered ("Studio Display 2").
+  table, then Finder's device types) and a subtitle: "Connected • 2 accessories" while plugged in
+  ("Connecting…" or "Needs a Nudge" in place of "Connected" when that applies), "2 accessories"
+  with a grayed title otherwise. Monitors with the same name are numbered ("Studio Display 2").
 - Inside each monitor, its accessories with the system's artwork for Magic Keyboard (Touch ID and
   numeric keypad variants by name), Magic Mouse and Magic Trackpad (the images macOS shows in its
-  connection notices). Nothing is bundled; a missing image falls back to an SF Symbol. Each
-  accessory's submenu says its status in full and offers **Forget Accessory**, which also unpairs
-  it from this Mac like Bluetooth settings' Forget (otherwise it would be relearned the moment it
-  reconnects). An unplugged monitor can be forgotten from its own submenu.
+  connection notices). Nothing is bundled; a missing image falls back to an SF Symbol. While the
+  monitor is plugged in, the subtitle says "Connected", "Connecting…", or what to do when it needs
+  a nudge; otherwise the title is grayed. Each accessory's submenu offers **Forget Accessory**,
+  which also unpairs it from this Mac like Bluetooth settings' Forget (otherwise it would be
+  relearned the moment it reconnects). An unplugged monitor can be forgotten from its own submenu.
 - The icon turns into a warning when Bluetooth is off or denied, or an accessory needs a nudge.
 - **Open at Login** is turned on at the first launch from an Applications folder, since Poly only
   works while running, and stays however the person sets it after that. Runs from Xcode's build

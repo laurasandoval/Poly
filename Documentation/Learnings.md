@@ -3,6 +3,18 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: menu subtitles and grayed titles from SwiftUI
+
+How SwiftUI menu labels bridge to `NSMenuItem` (macOS 27, checked by reading the bridged items):
+
+- `Label { Text } icon: { Image }` followed by a second `Text` gives title, icon and **subtitle**
+  (`NSMenuItem.subtitle`). Two Texts inside the Label's title, or in a VStack, give no subtitle;
+  two plain Texts give a subtitle but the image then loses `.titleAndIcon` visibility.
+- `.foregroundStyle(.secondary)` on the title Text becomes an `attributedTitle` with a gray color:
+  grayed out but still enabled, so submenus stay reachable. `.disabled(true)` on a `Menu` left
+  the item enabled.
+- `NSMenuItem.subtitle` needs macOS 14.4; on 14.0 to 14.3 the subtitle is simply absent.
+
 ## 2026-11-15: handoffs work; clamshell unplug did not release
 
 **Result.** After the synchronous-call fix, a lid-open handoff worked: the taking Mac's log shows
