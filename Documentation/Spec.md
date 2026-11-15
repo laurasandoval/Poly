@@ -115,15 +115,15 @@ real monitor.
 
 A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no windows, no settings.
 
-- Each monitor with its system icon (System Settings' own artwork: the Displays override table,
-  then Finder's device types), followed by its accessories with the system's artwork for Magic
-  Keyboard (Touch ID and numeric keypad variants by name), Magic Mouse and Magic Trackpad (the
-  images macOS shows in its connection notices). Nothing is bundled; a missing image falls back to
-  an SF Symbol.
-- An accessory's title says "Connecting…" or "Needs a Nudge" only when something is happening; its
-  submenu says the status in full and offers **Forget Accessory**, which also unpairs it from this
-  Mac like Bluetooth settings' Forget (otherwise it would be relearned the moment it reconnects).
-- A monitor's submenu says whether it is plugged in; an unplugged monitor can be forgotten.
+- One item per monitor, with its system icon (System Settings' own artwork: the Displays override
+  table, then Finder's device types). Its title adds "In Use", "Connecting…" or "Needs a Nudge"
+  while it is plugged in; monitors with the same name are numbered ("Studio Display 2").
+- Inside each monitor, its accessories with the system's artwork for Magic Keyboard (Touch ID and
+  numeric keypad variants by name), Magic Mouse and Magic Trackpad (the images macOS shows in its
+  connection notices). Nothing is bundled; a missing image falls back to an SF Symbol. Each
+  accessory's submenu says its status in full and offers **Forget Accessory**, which also unpairs
+  it from this Mac like Bluetooth settings' Forget (otherwise it would be relearned the moment it
+  reconnects). An unplugged monitor can be forgotten from its own submenu.
 - The icon turns into a warning when Bluetooth is off or denied, or an accessory needs a nudge.
 - **Open at Login** is turned on at the first launch from an Applications folder, since Poly only
   works while running, and stays however the person sets it after that. Runs from Xcode's build
@@ -158,6 +158,13 @@ a passkey to type when a keyboard asks for one.
 - Two identical monitors whose serials macOS cannot read are indistinguishable.
 - An accessory connected while a Sidecar iPad or AirPlay screen is the only external display is
   learned for it. Forget it from the menu if that was not meant.
+
+## Diagnosing
+
+Every handoff step goes to the unified log (subsystem `work.lau.poly`): monitors attached, each
+take result with IOReturn codes, pairing, releases with whether the accessory is still paired, and
+sleep. See `Poly/System/Log.swift` for the command. Findings go in
+[Learnings](Learnings.md).
 
 ## Manual test plan
 

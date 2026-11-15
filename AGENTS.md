@@ -1,7 +1,9 @@
 # Poly agent guide
 
 The canonical guide for every coding agent. There is no CLAUDE.md. Read this and
-[the spec](Documentation/Spec.md) (implement it, do not redesign it) before changing anything. The
+[the spec](Documentation/Spec.md) (implement it, do not redesign it) and
+[Learnings](Documentation/Learnings.md) before changing anything; add to Learnings whenever
+something surprises you. The
 owner's shared instructions in `~/Developer/agents/instructions.md` also apply; on conflict, the
 owner's latest explicit message wins.
 
@@ -38,6 +40,7 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 | `Poly/System/PowerEvents.swift` | Sleep and wake from IOKit power management |
 | `Poly/System/SystemIcons.swift` | System artwork for monitors and accessories |
 | `Poly/System/Notifier.swift`, `LoginItem.swift` | Notifications, open at login |
+| `Poly/System/Log.swift` | Unified log categories and the command to read them |
 | `Poly/Views/MenuContent.swift` | The menu; renders and forwards intents only |
 | `Poly/AppIcon.icon` | Icon Composer app icon (SVG layers) |
 
