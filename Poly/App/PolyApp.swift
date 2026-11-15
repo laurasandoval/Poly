@@ -4,6 +4,10 @@ import SwiftUI
 struct PolyApp: App {
     @State private var switcher: Switcher
     @State private var loginItem: LoginItem
+    /// Keeps App Nap from delaying Poly's short timers (the unplug grace period, connection retries).
+    /// Poly has no timers while idle, and idle system sleep stays allowed.
+    private let activity = ProcessInfo.processInfo.beginActivity(
+        options: .userInitiatedAllowingIdleSystemSleep, reason: "Handing accessories over when monitors change")
 
     init() {
         let switcher = Switcher()
