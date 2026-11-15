@@ -3,6 +3,28 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: the closed MacBook still did not release
+
+**Evidence.** The unplugged MacBook's log: `about to sleep; attached: 610-ae3a-1439526375` at
+15:20:02 (one second after unplugging, the display list still showed the Studio Display, and the
+lid check did not fire, so `AppleClamshellCausesSleep` was not yet true either); then `woke` at
+15:20:50 when the lid was opened, `monitors attached: none`, and the release 15 s later (the
+post-wake hold).
+
+**Lesson.** At sleep time there is no trustworthy "monitor is gone" signal. Do not ask for one;
+make sleep itself the signal.
+
+**Fix.** While a closed MacBook has a known monitor plugged in, Poly holds
+`PreventUserIdleSystemSleep` (display sleep still allowed; lid and unplug sleep are not affected),
+so a closed MacBook only sleeps when unplugged or put to sleep on purpose, and Poly releases
+everything whenever a closed MacBook sleeps. The log line now records lid state, lid-sleeps and
+the listed monitors.
+
+**Also.** For the incoming closed MacBook: check on every wake right away and every 2 s for 30 s,
+and declare user activity when a known monitor is newly plugged in with the lid closed, so the
+display wakes and the keyboard can type the password. Pre-login after a restart is out of reach
+for a session app.
+
 ## 2026-11-15: menu subtitles and grayed titles from SwiftUI
 
 How SwiftUI menu labels bridge to `NSMenuItem` (macOS 27, checked by reading the bridged items):
@@ -26,12 +48,12 @@ slept; the other Mac could not take them until the lid was opened, when the 15 s
 expired and the woken Mac released them.
 
 **Likely cause.** The sleep handler decided which monitors were gone from the CoreGraphics display
-list, which can still list the monitor that was just unplugged while the Mac starts to sleep. The
-sleeping Mac's own log was not collected, so this is inferred from the behavior.
+list, which can still list the monitor that was just unplugged while the Mac starts to sleep
+(confirmed by the next test's log, below).
 
-**Fix.** With the lid closed, Poly asks the power manager instead: `AppleClamshellState` and
-`AppleClamshellCausesSleep` on `IOPMrootDomain` both true means no external display is keeping the
-Mac awake, so every monitor is gone. The same check releases immediately (no 2 s grace) when a
+**First fix (not enough).** With the lid closed, Poly asked the power manager instead:
+`AppleClamshellState` and `AppleClamshellCausesSleep` both true meaning no external display.
+`AppleClamshellCausesSleep` had not changed yet either; see the entry above. The same check releases immediately (no 2 s grace) when a
 monitor disappears with the lid closed. Look for "about to sleep with the lid closed and no
 monitor" in the log to confirm on hardware.
 
