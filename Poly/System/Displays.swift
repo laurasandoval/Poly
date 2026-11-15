@@ -57,10 +57,30 @@ enum Displays {
         return names
     }
 
+    /// Known monitors the display controller reports even before macOS lists them (a closed
+    /// MacBook that was just plugged in has its display off): matched by vendor, product and either
+    /// registry serial against the saved identities.
+    static func registryMatches(_ known: [Monitor]) -> [Monitor] {
+        let candidates = Set(
+            registryPanels().flatMap { panel in
+                let prefix = String(format: "%x-%x-", panel.vendorID, panel.productID)
+                return [panel.serial, panel.numericSerial, "0"].compactMap { $0 }.map { prefix + $0 }
+            })
+        return known.filter { candidates.contains($0.id) }
+    }
+
+    /// For the log: what the display controller reports right now.
+    static func registrySummary() -> String {
+        let panels = registryPanels().map { String(format: "%x-%x-", $0.vendorID, $0.productID) + ($0.serial ?? "?") }
+        return panels.isEmpty ? "none" : panels.joined(separator: ", ")
+    }
+
     private struct Panel {
         let vendorID: UInt32
         let productID: UInt32
+        /// Alphanumeric serial when there is one, else the numeric one.
         let serial: String?
+        let numericSerial: String?
         let name: String?
     }
 
@@ -92,7 +112,7 @@ enum Displays {
             let numeric = (product["SerialNumber"] as? NSNumber).flatMap { $0.uint32Value == 0 ? nil : $0.stringValue }
             panels.append(
                 Panel(
-                    vendorID: vendorID, productID: productID, serial: alphanumeric ?? numeric,
+                    vendorID: vendorID, productID: productID, serial: alphanumeric ?? numeric, numericSerial: numeric,
                     name: product["ProductName"] as? String))
         }
         return panels

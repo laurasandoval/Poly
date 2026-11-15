@@ -158,6 +158,21 @@ final class Switcher {
         for second in stride(from: 2.0, through: 30, by: 2) { reconcile(after: second) }
     }
 
+    /// The monitor a closed MacBook was just plugged into, before macOS lists it (about 1.6 s after
+    /// the wake): the known monitor the display controller already reports, or, when this Mac knows
+    /// only one monitor, that one. With several known and none reported, nothing is guessed: taking
+    /// another monitor's accessories would take them from whoever is using them.
+    private func inferredMonitors() -> [AttachedMonitor] {
+        var matches = Displays.registryMatches(monitors)
+        if matches.isEmpty, monitors.count == 1 { matches = monitors }
+        Log.switcher.info(
+            "closed on a monitor not listed yet; registry: \(Displays.registrySummary(), privacy: .public), inferred: \(matches.map(\.name).joined(separator: ", "), privacy: .public)"
+        )
+        return matches.map {
+            AttachedMonitor(id: $0.id, name: $0.name, vendorID: $0.vendorID, productID: $0.productID)
+        }
+    }
+
     /// Coalesces bursts of Bluetooth notifications into one pass.
     private func reconcileSoon() {
         guard !reconcileSoonPending else { return }
@@ -180,7 +195,10 @@ final class Switcher {
 
     private func reconcile() {
         guard bluetoothState == .ready, !sleeping else { return }
-        let attached = Displays.attached()
+        var attached = Displays.attached()
+        let closedOnMonitor = isClosedOnMonitor
+        // Only while macOS lists no real display yet: once it lists one, that list is the truth.
+        if closedOnMonitor, attached.isEmpty { attached = inferredMonitors() }
         let newlyAttached = Set(attached.map(\.id)).subtracting(attachedMonitors.map(\.id))
         if attached != attachedMonitors {
             let names = attached.map { "\($0.name) [\($0.id)]" }.joined(separator: ", ")
@@ -207,7 +225,9 @@ final class Switcher {
         if Lid.isClosed, attachedKnown.contains(where: { newlyAttached.contains($0.id) }) {
             wakefulness.wakeDisplay()
         }
-        let claimsHeld = holdClaimsUntil > .now
+        // The hold guards against a display list left over from before a sleep; the power manager
+        // saying a closed MacBook has a monitor is current, so it needs no hold.
+        let claimsHeld = holdClaimsUntil > .now && !closedOnMonitor
         if claimsHeld { reconcile(after: holdClaimsUntil.timeIntervalSinceNow + 0.1) }
         for monitor in attachedKnown {
             missingSince[monitor.id] = nil
