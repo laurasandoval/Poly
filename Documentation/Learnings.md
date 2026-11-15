@@ -3,6 +3,28 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: releasing works; a closed MacBook being plugged in did not wake
+
+**Evidence** (logs from both MacBooks). Every unplug now logs `about to sleep; lid closed: true`
+and both accessories `forgotten, still paired: false`, and the other Mac pairs them in about 2 s
+each once it is awake. But plugging a closed MacBook in produced only a one-second wake:
+`woke; lid closed: true`, `monitors attached:  [756e6b6e-76697274-0]` (macOS's stand-in display,
+'unkn' 'virt'), then `about to sleep; lid closed: true, lid sleeps: false` a second later. The
+display never lit, so the person had to open the lid.
+
+**Lessons.**
+- The brief wake of a closed MacBook being plugged in does not list the real monitor, but
+  `AppleClamshellCausesSleep` is already false: the power manager knows a display is attached.
+  (At unplug time the same flag lags; it is only trustworthy in this direction.)
+- The stand-in display ('unkn' 'virt') appears in `CGGetOnlineDisplayList` and must be ignored, or
+  an accessory connecting then would be learned for it.
+- Right after a lid-open wake, the display list briefly still showed the monitor from before the
+  sleep; the MacBook started pairing the keyboard another Mac was using until the list caught up
+  (`pairing stopped` 0.3 s later). Claims now wait 1.5 s after a wake.
+
+**Fix.** On wake, a closed MacBook with `AppleClamshellCausesSleep` false declares user activity,
+which wakes it fully; the same condition cancels idle sleep.
+
 ## 2026-11-15: the closed MacBook still did not release
 
 **Evidence.** The unplugged MacBook's log: `about to sleep; attached: 610-ae3a-1439526375` at

@@ -94,11 +94,18 @@ opening the lid (or plugging in again) brings them back.
 
 ### Plugged into a closed MacBook: wake it
 
-A closed MacBook plugged into a monitor may wake in the background with its display still off,
-and the keyboard is what would wake it. After any wake Poly checks right away and every 2 s for
-30 s. When a closed MacBook finds a known monitor newly plugged in, Poly declares user activity
-(`IOPMAssertionDeclareUserActivity`), which wakes the display like a key press, and connects the
-accessories so the lock screen can be unlocked with them.
+Plugging a closed MacBook into a monitor wakes it for only about a second, in the background: the
+display stays off, the display list shows only macOS's stand-in display (vendor 'unkn', product
+'virt', which Poly ignores), and the Mac goes back to sleep. The power manager does know a monitor
+is there: `AppleClamshellCausesSleep` is false. So on every wake, a closed MacBook with
+`AppleClamshellCausesSleep` false, on a Mac that has learned a monitor, declares user activity
+(`IOPMAssertionDeclareUserActivity`), which wakes it fully like a key press. The display lights,
+the display list catches up, and the accessories connect so the lock screen can be unlocked with
+them. The same condition cancels an idle sleep (`kIOMessageCanSystemSleep`).
+
+After any wake, Poly checks right away and every 2 s for 30 s, but starts no claim for 1.5 s:
+the display list can still show the monitor from before the sleep, and claiming on that would pair
+accessories another Mac is using.
 
 Poly runs in the person's session, so it works at the lock screen but not at the login window
 after a restart (FileVault or a logged-out Mac); that would need a privileged daemon.
