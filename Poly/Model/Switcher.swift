@@ -190,7 +190,9 @@ final class Switcher {
         }
         let since = missingSince[monitor.id] ?? .now
         missingSince[monitor.id] = since
-        let releaseAt = max(since.addingTimeInterval(2), holdReleasesUntil)
+        // Closed and about to sleep for lack of a monitor: no time for a grace period.
+        let sleepingSoon = Lid.isClosed && Lid.closingSleeps
+        let releaseAt = sleepingSoon ? .now : max(since.addingTimeInterval(2), holdReleasesUntil)
         guard releaseAt <= .now else { return reconcile(after: releaseAt.timeIntervalSinceNow + 0.1) }
         Log.switcher.info("releasing accessories of \(monitor.name, privacy: .public) [\(monitor.id, privacy: .public)]")
         releases[monitor.id] = Task {
@@ -262,10 +264,18 @@ final class Switcher {
         guard bluetoothState == .ready else { return }
 
         let work = Task {
-            // Let the display list settle after an unplug.
-            try? await Task.sleep(for: .seconds(1))
-            let attachedIDs = Set(Displays.attached().map(\.id))
-            Log.switcher.info("about to sleep; attached: \(attachedIDs.sorted().joined(separator: ", "), privacy: .public)")
+            let attachedIDs: Set<String>
+            if Lid.isClosed && Lid.closingSleeps {
+                // A closed MacBook that sleeps has no monitor left. The display list can still show
+                // the one just unplugged at this point, so trust the power manager instead.
+                attachedIDs = []
+                Log.switcher.info("about to sleep with the lid closed and no monitor")
+            } else {
+                // Let the display list settle after an unplug.
+                try? await Task.sleep(for: .seconds(1))
+                attachedIDs = Set(Displays.attached().map(\.id))
+                Log.switcher.info("about to sleep; attached: \(attachedIDs.sorted().joined(separator: ", "), privacy: .public)")
+            }
             for monitor in monitors where !attachedIDs.contains(monitor.id) {
                 if Task.isCancelled { return }
                 await releases[monitor.id]?.value

@@ -65,3 +65,22 @@ nonisolated private func powerCallback(
         Unmanaged<PowerEvents>.fromOpaque(context).takeUnretainedValue().handle(message, argument: argument)
     }
 }
+
+/// The MacBook lid, from the power manager's own state. More dependable than the display list in
+/// the moment a closed MacBook is unplugged and starts to sleep. Macs without a lid report neither.
+enum Lid {
+    /// The lid is closed.
+    static var isClosed: Bool { rootDomainFlag("AppleClamshellState") }
+
+    /// A closed lid would put the Mac to sleep: no external display is keeping it awake. With the lid
+    /// closed, this is the power manager saying no monitor is attached.
+    static var closingSleeps: Bool { rootDomainFlag("AppleClamshellCausesSleep") }
+
+    private static func rootDomainFlag(_ key: String) -> Bool {
+        let rootDomain = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard rootDomain != 0 else { return false }
+        defer { IOObjectRelease(rootDomain) }
+        let value = IORegistryEntryCreateCFProperty(rootDomain, key as CFString, kCFAllocatorDefault, 0)
+        return (value?.takeRetainedValue() as? Bool) ?? false
+    }
+}
