@@ -2,7 +2,8 @@
 
 The canonical guide for every coding agent. There is no CLAUDE.md. Read this and
 [the spec](Documentation/Spec.md) (implement it, do not redesign it) and
-[Learnings](Documentation/Learnings.md) before changing anything; add to Learnings whenever
+[Learnings](Documentation/Learnings.md) before changing anything, and
+[the copy guide](Documentation/Copy.md) before changing any text the person sees; add to Learnings whenever
 something surprises you. The
 owner's shared instructions in `~/Developer/agents/instructions.md` also apply; on conflict, the
 owner's latest explicit message wins.
