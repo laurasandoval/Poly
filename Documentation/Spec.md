@@ -186,8 +186,8 @@ a passkey to type when a keyboard asks for one.
 
 - An accessory left unpaired for a long time stops listening and needs a click, a key press, or
   switching off and on. The nudge covers this.
-- macOS may show its own "Connection Request" alert after a switch; Poly cannot suppress it, and
-  the accessory usually works anyway.
+- macOS may show its own "Connection Request" alert after a switch (seen once, for the mouse, since
+  pairings overlap); Poly cannot suppress it, and the accessory works without answering it.
 - A Mac without Poly does not release accessories; unplug and let a Poly Mac take over, or forget
   them in that Mac's Bluetooth settings.
 - Two identical monitors whose serials macOS cannot read are indistinguishable.

@@ -3,6 +3,22 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: a "Connection Request" dialog after overlapping
+
+**Observed once**, on the first handoff with the 0.3 s overlap: macOS showed its Bluetooth
+"Connection Request" dialog for the Magic Mouse. The mouse worked without answering it. Never
+seen with sequential pairing. Magic Switch users report the same dialog (its issues #109, #150);
+its author says apps cannot suppress it.
+
+**Suspected cause (unconfirmed):** pairing the mouse while the keyboard is still pairing lets the
+mouse try to connect to the Mac on its own before Poly's pairing finishes, which macOS treats as
+an unexpected request. No log was captured.
+
+**If it recurs:** capture the log (the pairing steps are logged) and compare the mouse's answer
+check and `pairing started/connecting/connected` lines with the keyboard's. Options: start the
+mouse later (after `pairing finished` of the keyboard minus a margin) or return to sequential
+pairing, which costs 2 to 3 s.
+
 ## 2026-11-15: early claim works; the overlap did not happen
 
 **Evidence** (MacBook Air taking over, closed): `woke` at 16:20:56.267 and, in the same
