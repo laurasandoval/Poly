@@ -23,6 +23,19 @@ closed MacBook wakes with the power manager reporting a monitor and macOS lists 
 yet, Poly claims right away for the known monitor the display controller reports, or the only
 monitor it knows, which skips the 1.6 s wait.
 
+**Overlapping pairings.** Research (headers, a runtime dump of IOBluetooth on macOS 27, community
+reports) found no documentation or reports either way on concurrent `IOBluetoothDevicePair`s; the
+Core spec allows several ACL links, each authenticated on its own handle, but a controller pages
+one device at a time. Poly now starts the next accessory when the previous one reports
+`devicePairingConnected:` (paging done), at most 3 s later. Confirm on hardware: the mouse's
+"pairing finished" should land within a couple of seconds of the keyboard's, not after it.
+
+**Dead ends.** Magic accessories (second generation on) keep one host's link key, so the Mac
+taking over must pair again; importing link keys between Macs needs root, keychain items scoped to
+bluetoothd, and still fails because the key is bound to the other Mac's Bluetooth address.
+Released accessories stay in pairing mode for about 3 minutes (Apple's generic figure), so a click
+is needed only after longer gaps.
+
 **Size.** The Release app was 3.0 MB: the asset catalog 1.7 MB (1.46 MB of it two flattened 1024 px
 renders of the Icon Composer icon; the Liquid Glass layers are about 3 KB) and a universal,
 unstripped 1.2 MB binary. `DEPLOYMENT_POSTPROCESSING = YES` (strip), `-Osize`, and building only

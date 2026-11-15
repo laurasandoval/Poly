@@ -42,8 +42,10 @@ this Mac holds, and act on the difference. A missed event is repaired by the nex
 
 ### Plugged in: claim
 
-For each accessory of the attached monitor that is not connected, in order (keyboard, mouse,
-trackpad):
+For each accessory of the attached monitor that is not connected, keyboard first, then mouse,
+then trackpad, overlapped: each starts once the previous one's radio link is up
+(`devicePairingConnected:`, or it ended, or 3 s passed), so the mouse pairs while the keyboard
+finishes. A controller pages one device at a time, so they never start at the same instant.
 
 1. Bonded on this Mac → open a connection (5 s page timeout). Connected → done.
 2. Otherwise, check the accessory answers (remote name request, 2.5 s page timeout). No answer →
