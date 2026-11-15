@@ -39,7 +39,7 @@ struct MenuContent: View {
             } label: {
                 // A Label plus a second Text becomes the menu item's title, icon and subtitle.
                 Label {
-                    if attached { Text(name(of: monitor)) } else { Text(name(of: monitor)).foregroundStyle(.secondary) }
+                    Text(name(of: monitor))
                 } icon: {
                     Image(nsImage: SystemIcons.monitor(vendorID: monitor.vendorID, productID: monitor.productID))
                 }
@@ -61,11 +61,11 @@ struct MenuContent: View {
             Button("Forget Accessory") { switcher.forget(accessory) }
         } label: {
             Label {
-                if status == .free { Text(accessory.name).foregroundStyle(.secondary) } else { Text(accessory.name) }
+                Text(accessory.name)
             } icon: {
                 Image(nsImage: SystemIcons.accessory(accessory))
             }
-            if let subtitle = subtitle(of: accessory, status) { Text(subtitle) }
+            Text(subtitle(of: accessory, status))
         }
         .labelStyle(.titleAndIcon)
     }
@@ -79,11 +79,11 @@ struct MenuContent: View {
         return "\(monitor.name) \(index + 1)"
     }
 
-    /// "Connected • 2 accessories" while plugged in, "2 accessories" otherwise.
+    /// "Connected • 2 accessories" while plugged in, "Not Connected" otherwise.
     private func subtitle(of monitor: Monitor) -> String {
         let count = monitor.accessories.count
         let accessories = count == 1 ? String(localized: "1 accessory") : String(localized: "\(count) accessories")
-        guard switcher.isAttached(monitor) else { return accessories }
+        guard switcher.isAttached(monitor) else { return String(localized: "Not Connected") }
         let statuses = monitor.accessories.map { switcher.status(of: $0, on: monitor) }
         let state =
             if statuses.contains(.needsNudge) {
@@ -96,10 +96,10 @@ struct MenuContent: View {
         return "\(state) • \(accessories)"
     }
 
-    /// What is happening with an accessory, or nothing while another Mac is free to use it.
-    private func subtitle(of accessory: Accessory, _ status: AccessoryStatus) -> String? {
+    /// What is happening with an accessory.
+    private func subtitle(of accessory: Accessory, _ status: AccessoryStatus) -> String {
         switch status {
-        case .free: nil
+        case .free: String(localized: "Not Connected")
         case .connected: String(localized: "Connected")
         case .connecting: String(localized: "Connecting…")
         case .needsNudge:
