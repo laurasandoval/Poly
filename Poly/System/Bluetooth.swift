@@ -118,6 +118,21 @@ final class Bluetooth: NSObject {
         Log.bluetooth.info("\(address, privacy: .public) forgotten, still paired: \(device.isPaired(), privacy: .public)")
     }
 
+    /// Renames an accessory the way Bluetooth settings' Name field does, through IOBluetoothDevice's
+    /// private `rename:`. Returns the name Bluetooth reports afterwards.
+    func rename(_ address: String, to name: String) async -> String? {
+        guard let device = device(address) else { return nil }
+        let box = UncheckedBox(device)
+        await onQueue {
+            let rename = Selector(("rename:"))
+            if box.value.responds(to: rename) { _ = box.value.perform(rename, with: name) }
+        }
+        let reported = device.name
+        Log.bluetooth.info(
+            "\(address, privacy: .public) renamed to \(name, privacy: .public), reports \(reported ?? "nothing", privacy: .public)")
+        return reported
+    }
+
     // MARK: IOBluetooth plumbing
 
     private func device(_ address: String) -> IOBluetoothDevice? { IOBluetoothDevice(addressString: address) }

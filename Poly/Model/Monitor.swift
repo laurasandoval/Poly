@@ -28,7 +28,11 @@ struct Accessory: Codable, Identifiable, Hashable {
 
     /// Bluetooth address, lowercase with dashes ("68-fe-f7-51-10-68").
     let address: String
+    /// The accessory's own name, as Bluetooth last reported it.
     var name: String
+    /// A name the person chose while the accessory was not connected, given to the accessory the
+    /// next time it connects.
+    var pendingName: String?
     var kind: Kind
     var productID: UInt16?
 

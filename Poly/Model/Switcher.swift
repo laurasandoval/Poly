@@ -27,6 +27,8 @@ final class Switcher {
     private(set) var connected: Set<String> = []
     /// Accessories Poly has been trying to reach for a while.
     private(set) var needsNudge: Set<String> = []
+    /// The person's names for monitors, kept in Poly and iCloud since macOS cannot rename displays.
+    let monitorNames = MonitorNames()
 
     @ObservationIgnored private let bluetooth = Bluetooth()
     @ObservationIgnored private let access = BluetoothAccess()
@@ -98,6 +100,25 @@ final class Switcher {
     /// at least one monitor.
     private var isClosedOnMonitor: Bool {
         !monitors.isEmpty && Lid.isClosed && !Lid.closingSleeps
+    }
+
+    /// The person's name for a monitor, or the one macOS reports.
+    func name(of monitor: Monitor) -> String { monitorNames[monitor.id] ?? monitor.name }
+
+    /// A connected accessory shows its own name; one that is not shows the name it will be given.
+    func name(of accessory: Accessory) -> String {
+        connected.contains(accessory.address) ? accessory.name : accessory.pendingName ?? accessory.name
+    }
+
+    func rename(_ monitor: Monitor, to name: String) { monitorNames.set(name, for: monitor.id) }
+
+    /// Renames the accessory itself: now if it is connected, otherwise the next time it connects.
+    /// A rename the accessory does not take fails quietly; the menu shows whatever it reports.
+    func rename(_ accessory: Accessory, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        updateAccessory(accessory.address) { $0.pendingName = name == $0.name ? nil : name }
+        if connected.contains(accessory.address) { applyPendingName(accessory.address) }
     }
 
     var needsAttention: Bool {
@@ -385,15 +406,19 @@ final class Switcher {
     /// with no monitor or several, or while the accessory's own monitor was just unplugged and
     /// Poly is about to let it go.
     private func learn(_ info: AccessoryInfo) {
+        let known = monitors.lazy.flatMap(\.accessories).first { $0.address == info.address }
+        if known?.pendingName != nil { applyPendingName(info.address) }
         if let owner = monitors.first(where: { $0.accessories.contains { $0.address == info.address } }) {
             if isAttached(owner) || missingSince[owner.id] != nil {
-                rename(info)
+                updateName(info)
                 return
             }
         }
         guard attachedMonitors.count == 1, let attached = attachedMonitors.first else { return }
 
-        let accessory = Accessory(address: info.address, name: info.name, kind: info.kind, productID: info.productID)
+        let accessory = Accessory(
+            address: info.address, name: info.name, pendingName: known?.pendingName, kind: info.kind,
+            productID: info.productID)
         var updated = monitors
         for index in updated.indices { updated[index].accessories.removeAll { $0.address == info.address } }
         updated.removeAll { $0.accessories.isEmpty && $0.id != attached.id }
@@ -413,16 +438,33 @@ final class Switcher {
     }
 
     /// Keeps an accessory's name current when it is renamed in Bluetooth settings.
-    private func rename(_ info: AccessoryInfo) {
+    private func updateName(_ info: AccessoryInfo) {
         guard !info.name.isEmpty else { return }
-        for monitorIndex in monitors.indices {
-            for accessoryIndex in monitors[monitorIndex].accessories.indices
-            where monitors[monitorIndex].accessories[accessoryIndex].address == info.address
-                && monitors[monitorIndex].accessories[accessoryIndex].name != info.name
-            {
-                monitors[monitorIndex].accessories[accessoryIndex].name = info.name
+        updateAccessory(info.address) { $0.name = info.name }
+    }
+
+    /// Gives a connected accessory the name the person chose for it. Tried once: the pending name
+    /// is cleared first, and the accessory's own name is what shows afterwards either way.
+    private func applyPendingName(_ address: String) {
+        guard let name = monitors.lazy.flatMap(\.accessories).first(where: { $0.address == address })?.pendingName
+        else { return }
+        updateAccessory(address) { $0.pendingName = nil }
+        Task {
+            guard let reported = await bluetooth.rename(address, to: name), !reported.isEmpty else { return }
+            updateAccessory(address) { $0.name = reported }
+        }
+    }
+
+    /// Changes an accessory wherever it is saved, saving only when something changed.
+    private func updateAccessory(_ address: String, _ change: (inout Accessory) -> Void) {
+        var updated = monitors
+        for monitorIndex in updated.indices {
+            for accessoryIndex in updated[monitorIndex].accessories.indices
+            where updated[monitorIndex].accessories[accessoryIndex].address == address {
+                change(&updated[monitorIndex].accessories[accessoryIndex])
             }
         }
+        if updated != monitors { monitors = updated }
     }
 
     private func save() {
