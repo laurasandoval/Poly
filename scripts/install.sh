@@ -9,7 +9,7 @@ app="$derived/Build/Products/Release/Poly.app"
 
 build() {
     xcodebuild -project Poly.xcodeproj -scheme Poly -configuration Release \
-        -derivedDataPath "$derived" -quiet "$@" build
+        -destination "generic/platform=macOS" -derivedDataPath "$derived" -quiet "$@" build
 }
 
 echo "Building Poly…"
