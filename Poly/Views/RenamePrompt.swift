@@ -1,12 +1,14 @@
 import AppKit
 
-/// The standard rename alert: one text field holding the current name, selected.
+/// The standard rename alert: the display's or accessory's own artwork, and one text field holding
+/// the current name, selected.
 enum RenamePrompt {
-    static func ask(current: String, then rename: @escaping (String) -> Void) {
+    static func ask(current: String, icon: NSImage, then rename: @escaping (String) -> Void) {
         // Let the menu finish closing first, then bring Poly forward so the alert takes typing.
         Task { @MainActor in
             let alert = NSAlert()
             alert.messageText = String(localized: "Rename “\(current)”")
+            alert.icon = icon
             alert.addButton(withTitle: String(localized: "Rename"))
             alert.addButton(withTitle: String(localized: "Cancel"))
             let field = NSTextField(string: current)

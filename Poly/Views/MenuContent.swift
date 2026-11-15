@@ -20,25 +20,42 @@ struct MenuContent: View {
             EmptyView()
         }
 
-        if switcher.monitors.isEmpty {
-            Text("Plug into a monitor and connect its keyboard and mouse.")
-            Text("Poly takes it from there.")
+        if shownMonitors.isEmpty {
+            Text("Connect your Mac to an external display and accessories to get started.")
             Divider()
         }
 
-        ForEach(switcher.monitors) { monitor in
-            let attached = switcher.isAttached(monitor)
+        ForEach(shownMonitors) { monitor in
             let name = name(of: monitor)
             Menu {
                 ForEach(monitor.accessories) { accessory in
                     accessoryMenu(accessory, on: monitor)
                 }
+                if monitor.id == switcher.linkTarget?.id, !switcher.linkable.isEmpty {
+                    if !monitor.accessories.isEmpty { Divider() }
+                    ForEach(switcher.linkable, id: \.address) { info in
+                        let accessory = Accessory(info, name: info.name)
+                        Button {
+                            switcher.link(info)
+                        } label: {
+                            Label {
+                                Text("Link \(info.name) to \(name)")
+                            } icon: {
+                                Image(nsImage: SystemIcons.accessory(accessory))
+                            }
+                        }
+                        .labelStyle(.titleAndIcon)
+                    }
+                }
                 Divider()
                 Button("Rename…") {
-                    RenamePrompt.ask(current: switcher.name(of: monitor)) { switcher.rename(monitor, to: $0) }
+                    RenamePrompt.ask(
+                        current: switcher.name(of: monitor),
+                        icon: SystemIcons.monitor(vendorID: monitor.vendorID, productID: monitor.productID)
+                    ) { switcher.rename(monitor, to: $0) }
                 }
-                if !attached {
-                    Button("Forget \(name)") { switcher.forget(monitor) }
+                if monitor.accessories.count > 1 {
+                    Button("Unlink All Accessories") { switcher.unlinkAll(monitor) }
                 }
             } label: {
                 // A Label plus a second Text becomes the menu item's title, icon and subtitle.
@@ -52,11 +69,21 @@ struct MenuContent: View {
             // macOS 26 hides menu item images unless asked to show them.
             .labelStyle(.titleAndIcon)
         }
-        if !switcher.monitors.isEmpty { Divider() }
+        if !shownMonitors.isEmpty { Divider() }
 
         Toggle("Open at Login", isOn: Binding(get: { loginItem.isEnabled }, set: loginItem.setEnabled))
         Button("Quit Poly") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
+    }
+
+    /// Learned monitors, plus the plugged-in one while it has accessories to offer and has none yet.
+    private var shownMonitors: [Monitor] {
+        var shown = switcher.monitors
+        if let target = switcher.linkTarget, !switcher.linkable.isEmpty, !shown.contains(where: { $0.id == target.id }) {
+            shown.append(
+                Monitor(id: target.id, name: target.name, vendorID: target.vendorID, productID: target.productID, accessories: []))
+        }
+        return shown
     }
 
     private func accessoryMenu(_ accessory: Accessory, on monitor: Monitor) -> some View {
@@ -64,10 +91,12 @@ struct MenuContent: View {
         let name = switcher.name(of: accessory)
         return Menu {
             Button("Rename…") {
-                RenamePrompt.ask(current: name) { switcher.rename(accessory, to: $0) }
+                RenamePrompt.ask(current: name, icon: SystemIcons.accessory(accessory)) {
+                    switcher.rename(accessory, to: $0)
+                }
             }
             Divider()
-            Button("Forget Accessory") { switcher.forget(accessory) }
+            Button("Unlink from \(self.name(of: monitor))") { switcher.unlink(accessory) }
         } label: {
             Label {
                 Text(name)
@@ -82,7 +111,7 @@ struct MenuContent: View {
     /// The monitor's name, numbered when several share it ("Studio Display 2").
     private func name(of monitor: Monitor) -> String {
         let name = switcher.name(of: monitor)
-        let sameName = switcher.monitors.filter { switcher.name(of: $0) == name }
+        let sameName = shownMonitors.filter { switcher.name(of: $0) == name }
         guard sameName.count > 1, let index = sameName.firstIndex(where: { $0.id == monitor.id }), index > 0 else {
             return name
         }
@@ -94,10 +123,11 @@ struct MenuContent: View {
         let count = monitor.accessories.count
         let accessories = count == 1 ? String(localized: "1 accessory") : String(localized: "\(count) accessories")
         guard switcher.isAttached(monitor) else { return String(localized: "Not Connected") }
+        guard count > 0 else { return String(localized: "Connected") }
         let statuses = monitor.accessories.map { switcher.status(of: $0, on: monitor) }
         let state =
             if statuses.contains(.needsNudge) {
-                String(localized: "Needs a Nudge")
+                String(localized: "Couldn’t Connect")
             } else if statuses.contains(.connecting) {
                 String(localized: "Connecting…")
             } else {
