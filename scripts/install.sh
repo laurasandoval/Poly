@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds Poly (Release), installs it in /Applications and opens it.
+# Builds Poly (Release) for this Mac's architecture, installs it in /Applications and opens it.
 # Usage: scripts/install.sh
 set -euo pipefail
 
@@ -9,7 +9,8 @@ app="$derived/Build/Products/Release/Poly.app"
 
 build() {
     xcodebuild -project Poly.xcodeproj -scheme Poly -configuration Release \
-        -destination "generic/platform=macOS" -derivedDataPath "$derived" -quiet "$@" build
+        -destination "platform=macOS,arch=$(uname -m)" ONLY_ACTIVE_ARCH=YES \
+        -derivedDataPath "$derived" -quiet "$@" build
 }
 
 echo "Building Poly…"
