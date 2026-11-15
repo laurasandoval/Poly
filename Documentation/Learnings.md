@@ -3,6 +3,30 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: renaming
+
+- **A styled menu title drops the subtitle.** With `.foregroundStyle(.secondary)` on the title
+  `Text` (to gray unplugged monitors), the menu item showed no subtitle at all. Titles are plain
+  now; "Not Connected" says it instead.
+- **Menu shortcuts do not follow the open submenu.** With ⌘R on every Rename… item, ⌘R always
+  renamed the first accessory of the first monitor: an open menu matches key equivalents across
+  its whole tree, in item order, not just in the submenu showing. Removed; making it follow the
+  open submenu would need AppKit menu delegates.
+- **Displays cannot be renamed in macOS.** No setting or API; only third-party display override
+  files (BetterDisplay) change the system name. Poly keeps monitor names itself and syncs them with
+  `NSUbiquitousKeyValueStore`.
+- **Accessories:** `IOBluetoothDevice.name` is read-only in the headers, but the runtime (macOS 27)
+  has private `rename:`, `setDisplayName:` and `setName:`. Poly calls `rename:` on the Bluetooth
+  queue and logs the name the device reports afterwards ("renamed to …, reports …"). **Not yet
+  confirmed on hardware** whether the name reaches the accessory itself (another Mac seeing it) or
+  stays in this Mac's Bluetooth records.
+- **The iCloud key-value entitlement could not be added:** with it, automatic signing failed with
+  "PLA Update available … agree to the latest Program License Agreement" and then "No profiles for
+  'work.lau.poly'". After the owner accepted the agreement, automatic signing created the profile
+  and the build embeds it. `NSUbiquitousKeyValueStore` also works locally without the entitlement.
+  The install script's fallback (ad hoc signing) cannot carry this entitlement, so on a Mac
+  without the team's certificate that build would fail to launch; drop the entitlement there.
+
 ## 2026-11-15: a "Connection Request" dialog after overlapping
 
 **Observed once**, on the first handoff with the 0.3 s overlap: macOS showed its Bluetooth

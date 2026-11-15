@@ -150,15 +150,26 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
 
 - One item per monitor, with its system icon (System Settings' own artwork: the Displays override
   table, then Finder's device types) and a subtitle: "Connected • 2 accessories" while plugged in
-  ("Connecting…" or "Needs a Nudge" in place of "Connected" when that applies), "2 accessories"
-  with a grayed title otherwise. Monitors with the same name are numbered ("Studio Display 2").
+  ("Connecting…" or "Needs a Nudge" in place of "Connected" when that applies), "Not Connected"
+  otherwise. Monitors with the same name are numbered
+  ("Studio Display 2").
 - Inside each monitor, its accessories with the system's artwork for Magic Keyboard (Touch ID and
   numeric keypad variants by name), Magic Mouse and Magic Trackpad (the images macOS shows in its
   connection notices). Nothing is bundled; a missing image falls back to an SF Symbol. While the
   monitor is plugged in, the subtitle says "Connected", "Connecting…", or what to do when it needs
-  a nudge; otherwise the title is grayed. Each accessory's submenu offers **Forget Accessory**,
-  which also unpairs it from this Mac like Bluetooth settings' Forget (otherwise it would be
-  relearned the moment it reconnects). An unplugged monitor can be forgotten from its own submenu.
+  a nudge; otherwise it says "Not Connected". Each accessory's submenu
+  offers **Rename…** and **Forget Accessory**, which also unpairs it from this Mac like Bluetooth
+  settings' Forget (otherwise it would be relearned the moment it reconnects). Each monitor's
+  submenu offers **Rename…**, and an unplugged monitor can be forgotten from it ("Forget Office").
+- **Renaming** uses a standard alert with one text field. An accessory is renamed itself, like
+  Bluetooth settings' Name field (IOBluetoothDevice's private `rename:`): at once when connected,
+  otherwise the name waits (`pendingName`, shown in the menu meanwhile) and is given once, the
+  next time it connects. A connected accessory always shows the name Bluetooth reports, so a
+  rename that does not take simply does not show. macOS cannot rename a display, so a monitor's
+  name lives in Poly (`monitorNames` in UserDefaults), mirrored to iCloud key-value storage under
+  `monitor-name.<monitor id>` so the person's other Macs share it; without iCloud it stays on this
+  Mac. Each person's Macs keep their own names for a shared monitor. An empty name goes back to
+  the one macOS reports.
 - The icon turns into a warning when Bluetooth is off or denied, or an accessory needs a nudge.
 - **Open at Login** is turned on at the first launch from an Applications folder, since Poly only
   works while running, and stays however the person sets it after that. Runs from Xcode's build
@@ -179,6 +190,9 @@ a passkey to type when a keyboard asks for one.
   Switch. Poly is not sandboxed and is not for the Mac App Store; it is signed with the team's
   Apple Development certificate and runs with the hardened runtime.
 - `NSBluetoothAlwaysUsageDescription` and `LSUIElement` are in the generated Info.plist.
+- Monitor names sync through the `com.apple.developer.ubiquity-kvstore-identifier` entitlement
+  (`$(TeamIdentifierPrefix)$(CFBundleIdentifier)`, in `Poly.entitlements`), which embeds a Mac
+  App Development provisioning profile.
 - A process activity (`userInitiatedAllowingIdleSystemSleep`) keeps App Nap from stretching the
   short timers; Poly has no timers while idle and never prevents sleep.
 
