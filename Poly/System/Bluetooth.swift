@@ -1,5 +1,6 @@
 import Foundation
 import IOBluetooth
+import os
 
 /// An Apple keyboard, mouse or trackpad as Bluetooth sees it.
 struct AccessoryInfo {
@@ -22,16 +23,22 @@ enum TakeResult {
 /// The sequence follows what proved reliable in Magic Switch and blueutil: the Mac giving an
 /// accessory up only forgets it (Apple accessories then go back to pairing mode); the Mac taking it
 /// connects if it still holds a bond, and otherwise checks the accessory answers before pairing,
-/// connecting once pairing finishes. IOBluetooth delivers callbacks on the main run loop.
+/// connecting once pairing finishes.
+///
+/// Connecting, the answer check and forgetting use IOBluetooth's synchronous calls (no target),
+/// as blueutil and Magic Switch do, on one serial queue so the main thread never waits. The
+/// asynchronous variants call back through selectors that differ between methods and are easy to
+/// get wrong silently (see Documentation/Learnings.md). Pairing needs the main run loop for its
+/// delegate callbacks.
 final class Bluetooth: NSObject {
     /// Called on the main actor whenever any device connects or disconnects.
     var onConnectionsChanged: (() -> Void)?
 
     private var connectNotification: IOBluetoothUserNotification?
     private var disconnectNotifications: [String: IOBluetoothUserNotification] = [:]
-    /// Forgetting is synchronous IPC to bluetoothd that can take seconds, so it runs off the main thread.
-    private let removalQueue = DispatchQueue(label: "work.lau.poly.forget")
-    /// Callback targets IOBluetooth does not retain, kept alive until they finish.
+    /// Synchronous IOBluetooth calls are IPC to bluetoothd that can take seconds.
+    private let queue = DispatchQueue(label: "work.lau.poly.bluetooth")
+    /// Pairings in progress, kept alive until they finish.
     private var pending: Set<NSObject> = []
 
     /// Page timeouts, in 0.625 ms slots: about 5 seconds to connect, 2.5 to check an accessory answers.
@@ -61,23 +68,32 @@ final class Bluetooth: NSObject {
         if device.isConnected() { return .connected }
 
         if device.isPaired() {
-            if await openConnection(device) == kIOReturnSuccess, await waitUntilConnected(device, seconds: 5) {
-                return .connected
-            }
+            let status = await openConnection(device)
+            Log.bluetooth.info("\(address, privacy: .public) bonded, connect: \(Log.hex(status), privacy: .public)")
+            if status == kIOReturnSuccess, await waitUntilConnected(device, seconds: 5) { return .connected }
             // The bond is stale (another Mac paired it since) or the accessory is away. Only re-pair
             // when it answers; forgetting a sleeping accessory gains nothing.
-            guard await remoteNameRequest(device) == kIOReturnSuccess else { return .unreachable }
+            let answer = await remoteNameRequest(device)
+            Log.bluetooth.info("\(address, privacy: .public) answer check: \(Log.hex(answer), privacy: .public)")
+            guard answer == kIOReturnSuccess else { return .unreachable }
             await forget(address)
             try? await Task.sleep(for: .milliseconds(500))  // re-pairing inside the unbond window fails
             guard let fresh = self.device(address) else { return .failed }
             device = fresh
         } else {
             // Pairing something that is not listening hangs for a minute; ask first.
-            guard await remoteNameRequest(device) == kIOReturnSuccess else { return .unreachable }
+            let answer = await remoteNameRequest(device)
+            Log.bluetooth.info("\(address, privacy: .public) not bonded, answer check: \(Log.hex(answer), privacy: .public)")
+            guard answer == kIOReturnSuccess else { return .unreachable }
         }
 
-        guard await pair(device, onPasskey: onPasskey) else { return .failed }
-        if !device.isConnected() { _ = await openConnection(device) }
+        let paired = await pair(device, onPasskey: onPasskey)
+        Log.bluetooth.info("\(address, privacy: .public) pairing \(paired ? "succeeded" : "failed", privacy: .public)")
+        guard paired else { return .failed }
+        if !device.isConnected() {
+            let status = await openConnection(device)
+            Log.bluetooth.info("\(address, privacy: .public) connect after pairing: \(Log.hex(status), privacy: .public)")
+        }
         return await waitUntilConnected(device, seconds: 5) ? .connected : .failed
     }
 
@@ -86,18 +102,15 @@ final class Bluetooth: NSObject {
     func forget(_ address: String) async {
         guard let device = device(address), device.isPaired() || device.isConnected() else { return }
         let box = UncheckedBox(device)
-        let removalQueue = removalQueue
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            removalQueue.async {
-                let remove = Selector(("remove"))
-                if box.value.responds(to: remove) {
-                    _ = box.value.perform(remove)
-                } else {
-                    box.value.closeConnection()
-                }
-                continuation.resume()
+        await onQueue {
+            let remove = Selector(("remove"))
+            if box.value.responds(to: remove) {
+                _ = box.value.perform(remove)
+            } else {
+                box.value.closeConnection()
             }
         }
+        Log.bluetooth.info("\(address, privacy: .public) forgotten, still paired: \(device.isPaired(), privacy: .public)")
     }
 
     // MARK: IOBluetooth plumbing
@@ -116,28 +129,23 @@ final class Bluetooth: NSObject {
     /// Opens a connection that must authenticate, so a stale bond fails here instead of
     /// connecting for a moment and dropping when the accessory rejects the old key.
     private func openConnection(_ device: IOBluetoothDevice) async -> IOReturn {
-        await withCheckedContinuation { continuation in
-            let target = CompletionTarget { [weak self] target, status in
-                self?.pending.remove(target)
-                continuation.resume(returning: status)
-            }
-            pending.insert(target)
-            let status = device.openConnection(target, withPageTimeout: connectPageTimeout, authenticationRequired: true)
-            if status != kIOReturnSuccess { target.complete(status) }
-            target.expire(after: 10)
-        }
+        let box = UncheckedBox(device)
+        let timeout = connectPageTimeout
+        return await onQueue { box.value.openConnection(nil, withPageTimeout: timeout, authenticationRequired: true) }
     }
 
+    /// Whether the accessory answers at all: listening, awake and in range.
     private func remoteNameRequest(_ device: IOBluetoothDevice) async -> IOReturn {
-        await withCheckedContinuation { continuation in
-            let target = CompletionTarget { [weak self] target, status in
-                self?.pending.remove(target)
-                continuation.resume(returning: status)
-            }
-            pending.insert(target)
-            let status = device.remoteNameRequest(target, withPageTimeout: probePageTimeout)
-            if status != kIOReturnSuccess { target.complete(status) }
-            target.expire(after: 10)
+        let box = UncheckedBox(device)
+        let timeout = probePageTimeout
+        return await onQueue { box.value.remoteNameRequest(nil, withPageTimeout: timeout) }
+    }
+
+    /// Runs a synchronous IOBluetooth call on the serial Bluetooth queue.
+    private func onQueue<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        let queue = queue
+        return await withCheckedContinuation { continuation in
+            queue.async { continuation.resume(returning: work()) }
         }
     }
 
@@ -214,30 +222,6 @@ final class Bluetooth: NSObject {
     }
 }
 
-/// Receives `connectionComplete` and `remoteNameRequestComplete` and reports the first one.
-private final class CompletionTarget: NSObject {
-    private var handler: ((CompletionTarget, IOReturn) -> Void)?
-
-    init(_ handler: @escaping (CompletionTarget, IOReturn) -> Void) { self.handler = handler }
-
-    func complete(_ status: IOReturn) {
-        guard let handler else { return }
-        self.handler = nil
-        handler(self, status)
-    }
-
-    /// Fails the request if IOBluetooth never calls back.
-    func expire(after seconds: Double) {
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(seconds))
-            self?.complete(kIOReturnTimeout)
-        }
-    }
-
-    @objc func connectionComplete(_ device: IOBluetoothDevice, status: IOReturn) { complete(status) }
-    @objc func remoteNameRequestComplete(_ device: IOBluetoothDevice, status: IOReturn) { complete(status) }
-}
-
 /// One pairing attempt. Confirms numeric comparison, answers legacy PIN requests with 0000 (keyless
 /// accessories), and passes keyboard passkeys on so the person can type them.
 private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
@@ -254,7 +238,11 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
     }
 
     func start() {
-        guard pair.start() == kIOReturnSuccess else { return finish(false) }
+        let status = pair.start()
+        guard status == kIOReturnSuccess else {
+            Log.bluetooth.error("pairing did not start: \(Log.hex(status), privacy: .public)")
+            return finish(false)
+        }
         // IOBluetoothDevicePair has no timeout of its own; a first handoff can take 30 to 45 seconds.
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(60))
@@ -264,6 +252,7 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
 
     func cancel() {
         guard handler != nil else { return }
+        Log.bluetooth.info("pairing stopped")
         pair.stop()
         finish(false)
     }
@@ -275,7 +264,10 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
         handler(self, success)
     }
 
-    func devicePairingFinished(_ sender: Any!, error: IOReturn) { finish(error == kIOReturnSuccess) }
+    func devicePairingFinished(_ sender: Any!, error: IOReturn) {
+        Log.bluetooth.info("pairing finished: \(Log.hex(error), privacy: .public)")
+        finish(error == kIOReturnSuccess)
+    }
 
     func devicePairingUserConfirmationRequest(_ sender: Any!, numericValue: BluetoothNumericValue) {
         pair.replyUserConfirmation(true)
