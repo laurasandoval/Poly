@@ -43,6 +43,8 @@ struct MenuContent: View {
                         Image(nsImage: SystemIcons.monitor(vendorID: monitor.vendorID, productID: monitor.productID))
                     }
                 }
+                // macOS 26 hides menu item images unless asked to show them.
+                .labelStyle(.titleAndIcon)
 
                 ForEach(monitor.accessories) { accessory in
                     let status = switcher.status(of: accessory, on: monitor)
@@ -57,9 +59,9 @@ struct MenuContent: View {
                             Image(nsImage: SystemIcons.accessory(accessory))
                         }
                     }
+                    .labelStyle(.titleAndIcon)
                 }
             }
-            Divider()
         }
 
         Toggle("Open at Login", isOn: Binding(get: { loginItem.isEnabled }, set: loginItem.setEnabled))
