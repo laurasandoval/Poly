@@ -12,6 +12,7 @@ struct PolyApp: App {
     init() {
         let switcher = Switcher()
         let loginItem = LoginItem()
+        switcher.askToLink = LinkPrompt.ask
         switcher.start()
         loginItem.enableOnFirstLaunch()
         _switcher = State(initialValue: switcher)

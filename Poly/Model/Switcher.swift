@@ -29,6 +29,15 @@ final class Switcher {
     private(set) var needsNudge: Set<String> = []
     /// The person's names for monitors, kept in Poly and iCloud since macOS cannot rename displays.
     let monitorNames = MonitorNames()
+    /// Connected Apple accessories the one plugged-in monitor could have linked: not linked to it,
+    /// and not about to be released by another monitor. The menu offers to link them.
+    private(set) var linkable: [AccessoryInfo] = []
+    /// Accessories the person chose not to link, by monitor. Poly does not ask about them again.
+    private(set) var declined: [String: Set<String>] = [:] {
+        didSet { UserDefaults.standard.set(declined.mapValues { $0.sorted() }, forKey: Self.declinedKey) }
+    }
+    /// Shows the Link alert and returns the addresses the person chose to link. Set by the app.
+    @ObservationIgnored var askToLink: ((LinkOffer) async -> Set<String>)?
 
     @ObservationIgnored private let bluetooth = Bluetooth()
     @ObservationIgnored private let access = BluetoothAccess()
@@ -47,8 +56,16 @@ final class Switcher {
     @ObservationIgnored private var holdClaimsUntil = Date.distantPast
     @ObservationIgnored private var reconcileSoonPending = false
     @ObservationIgnored private var sleeping = false
+    /// Accessories already asked about while they stay connected; cleared when they disconnect.
+    @ObservationIgnored private var asked: Set<String> = []
+    /// Accessories that just connected, gathered for a moment so ones connected together share one alert.
+    @ObservationIgnored private var gathering: (monitor: AttachedMonitor, accessories: [AccessoryInfo])?
+    @ObservationIgnored private var gatheringTask: Task<Void, Never>?
+    @ObservationIgnored private var offers: [(monitor: AttachedMonitor, accessories: [AccessoryInfo])] = []
+    @ObservationIgnored private var presentingOffer = false
 
     private static let storageKey = "monitors"
+    private static let declinedKey = "declined"
 
     init() {
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
@@ -56,9 +73,13 @@ final class Switcher {
         {
             monitors = saved
         }
+        if let saved = UserDefaults.standard.dictionary(forKey: Self.declinedKey) as? [String: [String]] {
+            declined = saved.mapValues(Set.init)
+        }
     }
 
     func start() {
+        Notifier.requestPermission()
         access.onChange = { [weak self] in self?.bluetoothAccessChanged() }
         access.start()
 
@@ -125,24 +146,37 @@ final class Switcher {
         bluetoothState == .denied || bluetoothState == .off || !needsNudge.isEmpty
     }
 
-    /// Stops managing an accessory and unpairs it from this Mac, like Bluetooth settings' "Forget".
-    /// Unpairing is what keeps Poly from learning it again the moment it reconnects; connecting it
-    /// again while a monitor is plugged in teaches Poly about it again.
-    func forget(_ accessory: Accessory) {
+    /// The monitor accessories can be linked to: the only one plugged in.
+    var linkTarget: AttachedMonitor? { attachedMonitors.count == 1 ? attachedMonitors.first : nil }
+
+    /// Stops managing an accessory, as if the person had answered Don't Link. It stays paired and
+    /// connected; the menu offers to link it again while it is connected. A monitor left with no
+    /// accessories is no longer listed.
+    func unlink(_ accessory: Accessory) {
         var updated = monitors
-        for index in updated.indices { updated[index].accessories.removeAll { $0.address == accessory.address } }
+        for index in updated.indices {
+            if updated[index].accessories.contains(where: { $0.address == accessory.address }) {
+                declined[updated[index].id, default: []].insert(accessory.address)
+            }
+            updated[index].accessories.removeAll { $0.address == accessory.address }
+        }
         updated.removeAll { $0.accessories.isEmpty }
         monitors = updated
         needsNudge.remove(accessory.address)
-        Notifier.clearNudge(for: accessory)
-        Task { await bluetooth.forget(accessory.address) }
+        Notifier.clearNudge(for: accessory.address)
+        reconcile()
     }
 
-    /// Removes an unplugged monitor Poly no longer needs to remember.
-    func forget(_ monitor: Monitor) {
-        guard !isAttached(monitor) else { return }
-        monitors.removeAll { $0.id == monitor.id }
+    func unlinkAll(_ monitor: Monitor) {
+        for accessory in monitor.accessories { unlink(accessory) }
         missingSince[monitor.id] = nil
+    }
+
+    /// Links a connected accessory to the monitor plugged in now (the menu's Link item).
+    func link(_ info: AccessoryInfo) {
+        guard let monitor = linkTarget else { return }
+        link(info, to: monitor)
+        reconcile()
     }
 
     // MARK: Triggers
@@ -236,6 +270,7 @@ final class Switcher {
         }
 
         for info in bluetooth.connectedAccessories() { learn(info) }
+        offerLinks()
 
         let attachedKnown = monitors.filter { attachedIDs.contains($0.id) }
         // Only a closed MacBook needs this (see Wakefulness); closing or opening the lid changes the
@@ -317,9 +352,7 @@ final class Switcher {
                 previous = paged
                 let task = Task {
                     await after?.wait(upTo: 3)
-                    return await bluetooth.take(accessory.address, onPaged: { paged.open() }) { passkey in
-                        Notifier.typePasskey(passkey, on: accessory)
-                    }
+                    return await bluetooth.take(accessory.address, onPaged: { paged.open() })
                 }
                 attempts.append((accessory, task))
             }
@@ -331,10 +364,10 @@ final class Switcher {
                     refreshConnected()
                     if result == .connected {
                         needsNudge.remove(accessory.address)
-                        Notifier.clearNudge(for: accessory)
+                        Notifier.clearNudge(for: accessory.address)
                     } else if Date.now.timeIntervalSince(started) > 20, !needsNudge.contains(accessory.address) {
                         needsNudge.insert(accessory.address)
-                        Notifier.nudge(accessory)
+                        Notifier.couldNotConnect(name(of: accessory), address: accessory.address)
                     }
                 }
             } onCancel: {
@@ -392,30 +425,92 @@ final class Switcher {
     private func refreshConnected() {
         let now = Set(bluetooth.connectedAccessories().map(\.address))
         if now != connected { connected = now }
+        asked.formIntersection(now)
         let nudged = needsNudge.intersection(now)
         guard !nudged.isEmpty else { return }
         needsNudge.subtract(nudged)
         for monitor in monitors {
             for accessory in monitor.accessories where nudged.contains(accessory.address) {
-                Notifier.clearNudge(for: accessory)
+                Notifier.clearNudge(for: accessory.address)
             }
         }
     }
 
-    /// Records that a connected accessory belongs to the monitor plugged in now. Nothing is learned
-    /// with no monitor or several, or while the accessory's own monitor was just unplugged and
-    /// Poly is about to let it go.
+    /// Keeps a connected accessory's saved details current. Nothing is linked here: an accessory
+    /// connected while one monitor is plugged in is only offered (`offerLinks`).
     private func learn(_ info: AccessoryInfo) {
         let known = monitors.lazy.flatMap(\.accessories).first { $0.address == info.address }
         if known?.pendingName != nil { applyPendingName(info.address) }
-        if let owner = monitors.first(where: { $0.accessories.contains { $0.address == info.address } }) {
-            if isAttached(owner) || missingSince[owner.id] != nil {
-                updateName(info)
-                return
-            }
-        }
-        guard attachedMonitors.count == 1, let attached = attachedMonitors.first else { return }
+        if known != nil { updateName(info) }
+    }
 
+    /// Finds accessories the plugged-in monitor could link and asks about the new ones. Accessories
+    /// that connect within a second of each other share one alert; one that connects while an
+    /// alert is open waits for its own.
+    private func offerLinks() {
+        guard let monitor = linkTarget else {
+            if !linkable.isEmpty { linkable = [] }
+            return
+        }
+        let candidates = bluetooth.connectedAccessories().filter { info in
+            guard let owner = monitors.first(where: { $0.accessories.contains { $0.address == info.address } }) else {
+                return true
+            }
+            return owner.id != monitor.id && missingSince[owner.id] == nil && !isAttached(owner)
+        }
+        if candidates.map(\.address) != linkable.map(\.address) { linkable = candidates }
+
+        let new = candidates.filter {
+            !asked.contains($0.address) && !(declined[monitor.id]?.contains($0.address) ?? false)
+        }
+        guard !new.isEmpty else { return }
+        asked.formUnion(new.map(\.address))
+        if gathering?.monitor.id != monitor.id { gathering = (monitor, []) }
+        gathering?.accessories.append(contentsOf: new)
+        gatheringTask?.cancel()
+        gatheringTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, let batch = gathering else { return }
+            gathering = nil
+            offers.append(batch)
+            await presentOffers()
+        }
+    }
+
+    private func presentOffers() async {
+        guard !presentingOffer, let askToLink else { return }
+        presentingOffer = true
+        defer { presentingOffer = false }
+        while !offers.isEmpty {
+            let (monitor, accessories) = offers.removeFirst()
+            // Something may have changed while it waited: unplugged, disconnected, linked from the menu.
+            let still = accessories.filter { info in linkable.contains { $0.address == info.address } }
+            guard linkTarget?.id == monitor.id, !still.isEmpty else { continue }
+            let offer = LinkOffer(
+                monitorName: monitorNames[monitor.id] ?? monitor.name,
+                accessories: still.map { Accessory($0, name: name(of: $0)) })
+            let chosen = await askToLink(offer)
+            for info in still {
+                if chosen.contains(info.address) {
+                    link(info, to: monitor)
+                } else {
+                    declined[monitor.id, default: []].insert(info.address)
+                    Log.switcher.info("not linking \(info.name, privacy: .public) [\(info.address, privacy: .public)]")
+                }
+            }
+            reconcile()
+        }
+    }
+
+    /// The name to show for an accessory that may not be linked yet.
+    private func name(of info: AccessoryInfo) -> String {
+        monitors.lazy.flatMap(\.accessories).first { $0.address == info.address }.map(name(of:)) ?? info.name
+    }
+
+    /// Records that an accessory belongs to a monitor, moving it from any other.
+    private func link(_ info: AccessoryInfo, to attached: AttachedMonitor) {
+        let known = monitors.lazy.flatMap(\.accessories).first { $0.address == info.address }
+        declined[attached.id]?.remove(info.address)
         let accessory = Accessory(
             address: info.address, name: info.name, pendingName: known?.pendingName, kind: info.kind,
             productID: info.productID)
@@ -433,8 +528,7 @@ final class Switcher {
                     accessories: [accessory]))
         }
         monitors = updated
-        Log.switcher.info("learned \(info.name, privacy: .public) [\(info.address, privacy: .public)] for \(attached.name, privacy: .public) [\(attached.id, privacy: .public)]")
-        if let monitor = monitors.first(where: { $0.id == attached.id }) { Notifier.learned(monitor) }
+        Log.switcher.info("linked \(info.name, privacy: .public) [\(info.address, privacy: .public)] to \(attached.name, privacy: .public) [\(attached.id, privacy: .public)]")
     }
 
     /// Keeps an accessory's name current when it is renamed in Bluetooth settings.
@@ -470,6 +564,18 @@ final class Switcher {
     private func save() {
         guard let data = try? JSONEncoder().encode(monitors) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+}
+
+/// A question for the person: link these accessories to this monitor?
+struct LinkOffer {
+    let monitorName: String
+    let accessories: [Accessory]
+}
+
+extension Accessory {
+    init(_ info: AccessoryInfo, name: String) {
+        self.init(address: info.address, name: name, kind: info.kind, productID: info.productID)
     }
 }
 

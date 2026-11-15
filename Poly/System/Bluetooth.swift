@@ -3,7 +3,7 @@ import IOBluetooth
 import os
 
 /// An Apple keyboard, mouse or trackpad as Bluetooth sees it.
-struct AccessoryInfo {
+struct AccessoryInfo: Hashable {
     let address: String
     let name: String
     let kind: Accessory.Kind
@@ -66,7 +66,7 @@ final class Bluetooth: NSObject {
     /// `onPaged` runs once the radio link is up (or the attempt ended), when the controller is free
     /// to page the next accessory while this one finishes pairing.
     func take(
-        _ address: String, onPaged: @escaping () -> Void = {}, onPasskey: @escaping (UInt32) -> Void
+        _ address: String, onPaged: @escaping () -> Void = {}
     ) async -> TakeResult {
         defer { onPaged() }
         guard var device = device(address) else { return .failed }
@@ -92,7 +92,7 @@ final class Bluetooth: NSObject {
             guard answer == kIOReturnSuccess else { return .unreachable }
         }
 
-        let paired = await pair(device, onConnected: onPaged, onPasskey: onPasskey)
+        let paired = await pair(device, onConnected: onPaged)
         Log.bluetooth.info("\(address, privacy: .public) pairing \(paired ? "succeeded" : "failed", privacy: .public)")
         guard paired else { return .failed }
         if !device.isConnected() {
@@ -171,12 +171,12 @@ final class Bluetooth: NSObject {
 
     /// Pairs, stopping early if the task is cancelled (the monitor was unplugged meanwhile).
     private func pair(
-        _ device: IOBluetoothDevice, onConnected: @escaping () -> Void, onPasskey: @escaping (UInt32) -> Void
+        _ device: IOBluetoothDevice, onConnected: @escaping () -> Void
     ) async -> Bool {
         let slot = PairingSlot()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                let attempt = Pairing(device: device, onConnected: onConnected, onPasskey: onPasskey) {
+                let attempt = Pairing(device: device, onConnected: onConnected) {
                     [weak self] pairing, success in
                     self?.pending.remove(pairing)
                     continuation.resume(returning: success)
@@ -246,20 +246,19 @@ final class Bluetooth: NSObject {
 }
 
 /// One pairing attempt. Confirms numeric comparison, answers legacy PIN requests with 0000 (keyless
-/// accessories), and passes keyboard passkeys on so the person can type them.
+/// accessories). A keyboard asking for a passkey is only logged: Magic Keyboards have not been
+/// seen to ask, and macOS shows its own prompt when one does.
 private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
     private let pair: IOBluetoothDevicePair
-    private let onPasskey: (UInt32) -> Void
     private let onConnected: () -> Void
     private var handler: ((Pairing, Bool) -> Void)?
 
     init(
-        device: IOBluetoothDevice, onConnected: @escaping () -> Void, onPasskey: @escaping (UInt32) -> Void,
+        device: IOBluetoothDevice, onConnected: @escaping () -> Void,
         handler: @escaping (Pairing, Bool) -> Void
     ) {
         self.onConnected = onConnected
         pair = IOBluetoothDevicePair(device: device)
-        self.onPasskey = onPasskey
         self.handler = handler
         super.init()
         pair.delegate = self
@@ -324,7 +323,9 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
         pair.replyPINCode(4, pinCode: &pin)
     }
 
-    func devicePairingUserPasskeyNotification(_ sender: Any!, passkey: BluetoothPasskey) { onPasskey(passkey) }
+    func devicePairingUserPasskeyNotification(_ sender: Any!, passkey: BluetoothPasskey) {
+        Log.bluetooth.info("pairing asked to type a passkey")
+    }
 }
 
 /// Hands the running pairing to the cancellation handler (a main-actor class, so it is Sendable).
