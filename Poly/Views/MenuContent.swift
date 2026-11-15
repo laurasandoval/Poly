@@ -28,18 +28,22 @@ struct MenuContent: View {
 
         ForEach(switcher.monitors) { monitor in
             let attached = switcher.isAttached(monitor)
+            let name = name(of: monitor)
             Menu {
                 ForEach(monitor.accessories) { accessory in
                     accessoryMenu(accessory, on: monitor)
                 }
+                Divider()
+                Button("Rename…") {
+                    RenamePrompt.ask(current: switcher.name(of: monitor)) { switcher.rename(monitor, to: $0) }
+                }
                 if !attached {
-                    Divider()
-                    Button("Forget Monitor") { switcher.forget(monitor) }
+                    Button("Forget \(name)") { switcher.forget(monitor) }
                 }
             } label: {
                 // A Label plus a second Text becomes the menu item's title, icon and subtitle.
                 Label {
-                    Text(name(of: monitor))
+                    Text(name)
                 } icon: {
                     Image(nsImage: SystemIcons.monitor(vendorID: monitor.vendorID, productID: monitor.productID))
                 }
@@ -57,11 +61,16 @@ struct MenuContent: View {
 
     private func accessoryMenu(_ accessory: Accessory, on monitor: Monitor) -> some View {
         let status = switcher.status(of: accessory, on: monitor)
+        let name = switcher.name(of: accessory)
         return Menu {
+            Button("Rename…") {
+                RenamePrompt.ask(current: name) { switcher.rename(accessory, to: $0) }
+            }
+            Divider()
             Button("Forget Accessory") { switcher.forget(accessory) }
         } label: {
             Label {
-                Text(accessory.name)
+                Text(name)
             } icon: {
                 Image(nsImage: SystemIcons.accessory(accessory))
             }
@@ -72,11 +81,12 @@ struct MenuContent: View {
 
     /// The monitor's name, numbered when several share it ("Studio Display 2").
     private func name(of monitor: Monitor) -> String {
-        let sameName = switcher.monitors.filter { $0.name == monitor.name }
+        let name = switcher.name(of: monitor)
+        let sameName = switcher.monitors.filter { switcher.name(of: $0) == name }
         guard sameName.count > 1, let index = sameName.firstIndex(where: { $0.id == monitor.id }), index > 0 else {
-            return monitor.name
+            return name
         }
-        return "\(monitor.name) \(index + 1)"
+        return "\(name) \(index + 1)"
     }
 
     /// "Connected • 2 accessories" while plugged in, "Not Connected" otherwise.
