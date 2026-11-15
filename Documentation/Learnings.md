@@ -3,6 +3,23 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: early claim works; the overlap did not happen
+
+**Evidence** (MacBook Air taking over, closed): `woke` at 16:20:56.267 and, in the same
+millisecond, `closed on a monitor not listed yet; registry: none, inferred: Studio Display`.
+Keyboard paired at +2.0 s, mouse at +5.1 s (was 12.4 s). But the mouse's answer check came 10 ms
+after the keyboard finished: `devicePairingConnected:` never fired, presumably because the answer
+check had just brought the link up, and the 3 s fallback was longer than the keyboard's pairing.
+
+**Lessons.**
+- `DisplayAttributes` is not published during the background wake of a closed MacBook being
+  plugged in (`registry: none`), so the early claim only works on a Mac that knows one monitor.
+- Do not rely on `devicePairingConnected:`; every pairing callback is now logged to see which ones
+  macOS actually sends.
+
+**Change.** The next accessory now also starts 0.3 s after the previous pairing starts. Expected:
+the mouse finishes about 3 s after wake instead of 5.
+
 ## 2026-11-15: v1.0 works end to end; speed and size
 
 **Confirmed on hardware** (MacBook Air and MacBook Pro, closed, sharing one Studio Display): unplug
