@@ -3,6 +3,26 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: handoffs work; clamshell unplug did not release
+
+**Result.** After the synchronous-call fix, a lid-open handoff worked: the taking Mac's log shows
+each accessory "not bonded, answer check: 0x00000000", "pairing finished: 0x00000000" and
+connected, in about two seconds each.
+
+**Symptom.** Unplugging a MacBook in clamshell mode left both accessories paired to it while it
+slept; the other Mac could not take them until the lid was opened, when the 15 s post-wake hold
+expired and the woken Mac released them.
+
+**Likely cause.** The sleep handler decided which monitors were gone from the CoreGraphics display
+list, which can still list the monitor that was just unplugged while the Mac starts to sleep. The
+sleeping Mac's own log was not collected, so this is inferred from the behavior.
+
+**Fix.** With the lid closed, Poly asks the power manager instead: `AppleClamshellState` and
+`AppleClamshellCausesSleep` on `IOPMrootDomain` both true means no external display is keeping the
+Mac awake, so every monitor is gone. The same check releases immediately (no 2 s grace) when a
+monitor disappears with the lid closed. Look for "about to sleep with the lid closed and no
+monitor" in the log to confirm on hardware.
+
 ## 2026-11-15: handoffs stuck at "Needs a Nudge"
 
 **Symptom.** First test on two MacBooks: after unplugging one and plugging in the other, both

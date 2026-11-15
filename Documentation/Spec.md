@@ -73,11 +73,19 @@ come back, and releasing then would only churn.
 
 A closed MacBook unplugged from its monitor sleeps immediately, so there is no time for the normal
 release. macOS waits (up to about 30 s) for every app registered with `IORegisterForSystemPower`
-to allow sleep. Poly waits 1 s for the display list to settle, forgets the accessories of every
-monitor that is no longer attached, then allows sleep, giving up after 20 s.
+to allow sleep. Poly forgets the accessories of every monitor that is no longer attached, then
+allows sleep, giving up after 20 s.
 
-No clamshell detection is needed: the rule is the same as for any unplug. An idle sleep at the
-desk keeps the monitor attached, so nothing is released and the keyboard can still wake the Mac.
+Which monitors are attached comes from the power manager when the lid is closed: if
+`IOPMrootDomain` reports `AppleClamshellState` (lid closed) and `AppleClamshellCausesSleep` (no
+external display keeps it awake), no monitor is attached, whatever the display list says. The
+display list can still show the monitor just unplugged at that moment (first hardware test, see
+[Learnings](Learnings.md)). With the lid open, Poly waits 1 s for the display list to settle and
+reads it. The same lid check also skips the 2 s grace period when a monitor disappears while the
+lid is closed.
+
+An idle sleep at the desk keeps the monitor attached (`AppleClamshellCausesSleep` is false), so
+nothing is released and the keyboard can still wake the Mac.
 
 If the release is missed anyway (Poly was not running), the next Mac's retries keep paging. A
 Mac that still holds the bond wakes when the accessory pages it, sees its monitor is gone and
