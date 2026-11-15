@@ -10,6 +10,7 @@ import os
 nonisolated enum Log {
     static let switcher = Logger(subsystem: "work.lau.poly", category: "switcher")
     static let bluetooth = Logger(subsystem: "work.lau.poly", category: "bluetooth")
+    static let updates = Logger(subsystem: "work.lau.poly", category: "updates")
 
     static func hex(_ status: IOReturn) -> String {
         String(format: "0x%08x", UInt32(bitPattern: status))

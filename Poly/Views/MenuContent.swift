@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuContent: View {
     let switcher: Switcher
     let loginItem: LoginItem
+    let updater: Updater
 
     var body: some View {
         switch switcher.bluetoothState {
@@ -72,6 +73,8 @@ struct MenuContent: View {
         if !shownMonitors.isEmpty { Divider() }
 
         Toggle("Open at Login", isOn: Binding(get: { loginItem.isEnabled }, set: loginItem.setEnabled))
+        Button("Check for Updates…") { updater.checkForUpdates() }
+            .disabled(!updater.isEnabled)
         Button("Quit Poly") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }

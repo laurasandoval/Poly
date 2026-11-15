@@ -40,6 +40,8 @@ final class Bluetooth: NSObject {
     private let queue = DispatchQueue(label: "work.lau.poly.bluetooth")
     /// Pairings in progress, kept alive until they finish.
     private var pending: Set<NSObject> = []
+    /// Takes and forgets in progress. An update waits for none (`Updater`).
+    private(set) var operations = 0
 
     /// Page timeouts, in 0.625 ms slots: about 5 seconds to connect, 2.5 to check an accessory answers.
     private let connectPageTimeout: BluetoothHCIPageTimeout = 0x1F40
@@ -68,7 +70,11 @@ final class Bluetooth: NSObject {
     func take(
         _ address: String, onPaged: @escaping () -> Void = {}
     ) async -> TakeResult {
-        defer { onPaged() }
+        operations += 1
+        defer {
+            operations -= 1
+            onPaged()
+        }
         guard var device = device(address) else { return .failed }
         if device.isConnected() { return .connected }
 
@@ -106,6 +112,8 @@ final class Bluetooth: NSObject {
     /// they are unpaired go back to pairing mode by themselves.
     func forget(_ address: String) async {
         guard let device = device(address), device.isPaired() || device.isConnected() else { return }
+        operations += 1
+        defer { operations -= 1 }
         let box = UncheckedBox(device)
         await onQueue {
             let remove = Selector(("remove"))

@@ -63,6 +63,7 @@ final class Switcher {
     @ObservationIgnored private var gatheringTask: Task<Void, Never>?
     @ObservationIgnored private var offers: [(monitor: AttachedMonitor, accessories: [AccessoryInfo])] = []
     @ObservationIgnored private var presentingOffer = false
+    @ObservationIgnored private var lastDisplayChange = Date.distantPast
 
     private static let storageKey = "monitors"
     private static let declinedKey = "declined"
@@ -146,6 +147,15 @@ final class Switcher {
         bluetoothState == .denied || bluetoothState == .off || !needsNudge.isEmpty
     }
 
+    /// Whether restarting Poly now (to install an update) would interrupt nothing: no pairing,
+    /// connecting or releasing under way, no display change in the last 30 s, no sleep starting and
+    /// no question waiting for an answer. A claim that is only waiting between retries is fine; the
+    /// relaunched Poly picks it up.
+    var isQuiet: Bool {
+        !sleeping && releases.isEmpty && bluetooth.operations == 0 && !presentingOffer && gathering == nil
+            && offers.isEmpty && Date.now.timeIntervalSince(lastDisplayChange) > 30
+    }
+
     /// The monitor accessories can be linked to: the only one plugged in.
     var linkTarget: AttachedMonitor? { attachedMonitors.count == 1 ? attachedMonitors.first : nil }
 
@@ -192,6 +202,7 @@ final class Switcher {
     }
 
     private func displaysChanged() {
+        lastDisplayChange = .now
         reconcile()
         // A monitor's registry details can land a moment after CoreGraphics reports it.
         reconcile(after: 2)
