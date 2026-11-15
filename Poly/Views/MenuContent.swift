@@ -27,20 +27,23 @@ struct MenuContent: View {
         }
 
         ForEach(switcher.monitors) { monitor in
+            let attached = switcher.isAttached(monitor)
             Menu {
                 ForEach(monitor.accessories) { accessory in
                     accessoryMenu(accessory, on: monitor)
                 }
-                if !switcher.isAttached(monitor) {
+                if !attached {
                     Divider()
                     Button("Forget Monitor") { switcher.forget(monitor) }
                 }
             } label: {
+                // A Label plus a second Text becomes the menu item's title, icon and subtitle.
                 Label {
-                    Text(title(of: monitor))
+                    if attached { Text(name(of: monitor)) } else { Text(name(of: monitor)).foregroundStyle(.secondary) }
                 } icon: {
                     Image(nsImage: SystemIcons.monitor(vendorID: monitor.vendorID, productID: monitor.productID))
                 }
+                Text(subtitle(of: monitor))
             }
             // macOS 26 hides menu item images unless asked to show them.
             .labelStyle(.titleAndIcon)
@@ -55,52 +58,54 @@ struct MenuContent: View {
     private func accessoryMenu(_ accessory: Accessory, on monitor: Monitor) -> some View {
         let status = switcher.status(of: accessory, on: monitor)
         return Menu {
-            Text(description(of: status, accessory))
-            Divider()
             Button("Forget Accessory") { switcher.forget(accessory) }
         } label: {
             Label {
-                Text(title(of: accessory, status))
+                if status == .free { Text(accessory.name).foregroundStyle(.secondary) } else { Text(accessory.name) }
             } icon: {
                 Image(nsImage: SystemIcons.accessory(accessory))
             }
+            if let subtitle = subtitle(of: accessory, status) { Text(subtitle) }
         }
         .labelStyle(.titleAndIcon)
     }
 
-    /// The monitor's name, numbered when several share it ("Studio Display 2"), and how it is doing
-    /// when plugged in.
-    private func title(of monitor: Monitor) -> String {
+    /// The monitor's name, numbered when several share it ("Studio Display 2").
+    private func name(of monitor: Monitor) -> String {
         let sameName = switcher.monitors.filter { $0.name == monitor.name }
-        var name = monitor.name
-        if sameName.count > 1, let index = sameName.firstIndex(where: { $0.id == monitor.id }), index > 0 {
-            name += " \(index + 1)"
+        guard sameName.count > 1, let index = sameName.firstIndex(where: { $0.id == monitor.id }), index > 0 else {
+            return monitor.name
         }
-        guard switcher.isAttached(monitor) else { return name }
+        return "\(monitor.name) \(index + 1)"
+    }
+
+    /// "Connected • 2 accessories" while plugged in, "2 accessories" otherwise.
+    private func subtitle(of monitor: Monitor) -> String {
+        let count = monitor.accessories.count
+        let accessories = count == 1 ? String(localized: "1 accessory") : String(localized: "\(count) accessories")
+        guard switcher.isAttached(monitor) else { return accessories }
         let statuses = monitor.accessories.map { switcher.status(of: $0, on: monitor) }
-        if statuses.contains(.needsNudge) { return String(localized: "\(name) — Needs a Nudge") }
-        if statuses.contains(.connecting) { return String(localized: "\(name) — Connecting…") }
-        return String(localized: "\(name) — In Use")
+        let state =
+            if statuses.contains(.needsNudge) {
+                String(localized: "Needs a Nudge")
+            } else if statuses.contains(.connecting) {
+                String(localized: "Connecting…")
+            } else {
+                String(localized: "Connected")
+            }
+        return "\(state) • \(accessories)"
     }
 
-    private func title(of accessory: Accessory, _ status: AccessoryStatus) -> String {
+    /// What is happening with an accessory, or nothing while another Mac is free to use it.
+    private func subtitle(of accessory: Accessory, _ status: AccessoryStatus) -> String? {
         switch status {
-        case .free: accessory.name
-        case .connected: String(localized: "\(accessory.name) — Connected")
-        case .connecting: String(localized: "\(accessory.name) — Connecting…")
-        case .needsNudge: String(localized: "\(accessory.name) — Needs a Nudge")
-        }
-    }
-
-    private func description(of status: AccessoryStatus, _ accessory: Accessory) -> String {
-        switch status {
-        case .connected: String(localized: "Connected to This Mac")
+        case .free: nil
+        case .connected: String(localized: "Connected")
         case .connecting: String(localized: "Connecting…")
-        case .free: String(localized: "Free for Other Macs")
         case .needsNudge:
             accessory.kind == .keyboard
-                ? String(localized: "Press a Key, or Switch It Off and On")
-                : String(localized: "Click It, or Switch It Off and On")
+                ? String(localized: "Press a key, or switch it off and on")
+                : String(localized: "Click it, or switch it off and on")
         }
     }
 }
