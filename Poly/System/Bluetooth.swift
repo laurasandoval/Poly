@@ -256,6 +256,12 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
             Log.bluetooth.error("pairing did not start: \(Log.hex(status), privacy: .public)")
             return finish(false)
         }
+        // `devicePairingConnected:` does not come when the answer check has just brought the link
+        // up (first overlapped test), so the next accessory may also start shortly after this one.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            self?.onConnected()
+        }
         // IOBluetoothDevicePair has no timeout of its own; a first handoff can take 30 to 45 seconds.
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(60))
@@ -277,8 +283,14 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
         handler(self, success)
     }
 
+    func devicePairingStarted(_ sender: Any!) { Log.bluetooth.info("pairing started") }
+    func devicePairingConnecting(_ sender: Any!) { Log.bluetooth.info("pairing connecting") }
+
     /// Paging is done and the link is up; the rest of pairing (keys, encryption) runs on it.
-    func devicePairingConnected(_ sender: Any!) { onConnected() }
+    func devicePairingConnected(_ sender: Any!) {
+        Log.bluetooth.info("pairing connected")
+        onConnected()
+    }
 
     func devicePairingFinished(_ sender: Any!, error: IOReturn) {
         Log.bluetooth.info("pairing finished: \(Log.hex(error), privacy: .public)")

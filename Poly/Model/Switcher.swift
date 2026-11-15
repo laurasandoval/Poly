@@ -285,9 +285,9 @@ final class Switcher {
         while !Task.isCancelled, !sleeping, let monitor = monitors.first(where: { $0.id == monitorID }) {
             let waiting = monitor.accessories.filter { !bluetooth.isConnected($0.address) }
             if waiting.isEmpty { break }
-            // Overlapped, keyboard first: each accessory starts once the previous one's radio
-            // link is up (or after 3 s), so the mouse pairs while the keyboard finishes instead of
-            // after it. A controller pages one device at a time, so they are not started at once.
+            // Overlapped, keyboard first: each accessory starts once the previous one's pairing is
+            // under way (its link is up, or 0.3 s after it started, or it ended; at most 3 s), so
+            // the mouse pairs while the keyboard finishes instead of after it.
             var attempts: [(accessory: Accessory, task: Task<TakeResult, Never>)] = []
             var previous: Gate?
             for accessory in waiting {
