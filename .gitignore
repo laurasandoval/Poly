@@ -1,0 +1,8 @@
+# Build output
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
