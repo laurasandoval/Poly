@@ -107,7 +107,9 @@ while they are already connected, and Poly takes over from there.
 registry's alphanumeric serial on Apple silicon (`DisplayAttributes` → `ProductAttributes` on
 `IOMobileFramebuffer` services), else the EDID serial from `CGDisplaySerialNumber`, else 0. The
 serial is what tells two Studio Displays apart. Built-in screens never count; mirrored outputs
-count once.
+count once. Virtual displays (Sidecar, AirPlay, dummy-display apps) count like any monitor: telling
+them apart would rest on registry details too easy to get wrong, and a wrong guess would hide a
+real monitor.
 
 ## Interface
 
@@ -123,8 +125,11 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
   Mac like Bluetooth settings' Forget (otherwise it would be relearned the moment it reconnects).
 - A monitor's submenu says whether it is plugged in; an unplugged monitor can be forgotten.
 - The icon turns into a warning when Bluetooth is off or denied, or an accessory needs a nudge.
-- **Open at Login** is turned on at first launch, since Poly only works while running, and stays
-  however the person sets it after that.
+- **Open at Login** is turned on at the first launch from an Applications folder, since Poly only
+  works while running, and stays however the person sets it after that. Runs from Xcode's build
+  folder never register a login item.
+- Menu rows use `.labelStyle(.titleAndIcon)`: from macOS 26, menu item images are hidden unless
+  their visibility preference says otherwise.
 
 Notifications (permission asked the first time Poly learns a monitor, when the person has a
 working keyboard and mouse): what Poly learned, a nudge for an accessory that does not answer, and
@@ -139,6 +144,8 @@ a passkey to type when a keyboard asks for one.
   Switch. Poly is not sandboxed and is not for the Mac App Store; it is signed with the team's
   Apple Development certificate and runs with the hardened runtime.
 - `NSBluetoothAlwaysUsageDescription` and `LSUIElement` are in the generated Info.plist.
+- A process activity (`userInitiatedAllowingIdleSystemSleep`) keeps App Nap from stretching the
+  short timers; Poly has no timers while idle and never prevents sleep.
 
 ## Known limits
 
@@ -149,6 +156,8 @@ a passkey to type when a keyboard asks for one.
 - A Mac without Poly does not release accessories; unplug and let a Poly Mac take over, or forget
   them in that Mac's Bluetooth settings.
 - Two identical monitors whose serials macOS cannot read are indistinguishable.
+- An accessory connected while a Sidecar iPad or AirPlay screen is the only external display is
+  learned for it. Forget it from the menu if that was not meant.
 
 ## Manual test plan
 
