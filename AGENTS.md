@@ -42,6 +42,7 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 | `Poly/System/SystemIcons.swift` | System artwork for monitors and accessories |
 | `Poly/System/Notifier.swift`, `LoginItem.swift` | Notifications, open at login |
 | `Poly/System/Log.swift` | Unified log categories and the command to read them |
+| `Poly/System/Updater.swift` | Silent Sparkle updates; keys in `Poly-Info.plist` |
 | `Poly/Views/MenuContent.swift` | The menu; renders and forwards intents only |
 | `Poly/AppIcon.icon` | Icon Composer app icon (SVG layers) |
 
@@ -54,7 +55,9 @@ Swift 6, main-actor default isolation; IOBluetooth and IOKit callbacks arrive on
 xcodebuild -project Poly.xcodeproj -scheme Poly -derivedDataPath build/DerivedData -allowProvisioningUpdates build
 ```
 
-`scripts/install.sh` builds Release, installs in /Applications and opens it. Launch the app through
+`scripts/install.sh` builds Release, installs in /Applications and opens it (such builds never
+update themselves). `scripts/release.sh <version>` makes and publishes a release; see
+[Releasing](Documentation/Releasing.md). Launch the app through
 LaunchServices (`open`), not its executable: run from a shell, the shell is responsible for the
 Bluetooth permission and TCC kills the process. Do not grant permissions or pair, unpair or
 connect the owner's accessories without asking; behavior changes are verified with the spec's

@@ -192,6 +192,7 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
   Mac. Each person's Macs keep their own names for a shared monitor. An empty name goes back to
   the one macOS reports.
 - The icon turns into a warning when Bluetooth is off or denied, or an accessory needs a nudge.
+- **Check for Updates…** sits above Quit (see Platform).
 - **Open at Login** is turned on at the first launch from an Applications folder, since Poly only
   works while running, and stays however the person sets it after that. Runs from Xcode's build
   folder never register a login item.
@@ -207,8 +208,15 @@ does not answer. Everything uses the person's names for monitors and accessories
   main-actor default isolation. IOBluetooth for pairing (Core Bluetooth cannot pair classic HID
   accessories), Core Bluetooth only for the permission and power state.
 - Forgetting uses IOBluetoothDevice's private `remove` selector, the same as blueutil and Magic
-  Switch. Poly is not sandboxed and is not for the Mac App Store; it is signed with the team's
-  Apple Development certificate and runs with the hardened runtime.
+  Switch. Poly is not sandboxed and is not for the Mac App Store. Releases are signed with the
+  team's Developer ID, notarized, and published as a DMG from a public releases repository
+  ([Releasing](Releasing.md)); development builds use the Apple Development certificate. Both run
+  with the hardened runtime.
+- **Updates are silent.** Sparkle checks every 6 hours, downloads in the background, and Poly
+  installs and relaunches itself as soon as it is quiet (no handoff, display change, sleep or
+  question under way). Sparkle never shows a window on its own; **Check for Updates…** in the menu
+  is the only update UI. Builds without the release key (Xcode, `scripts/install.sh`) never
+  update.
 - `NSBluetoothAlwaysUsageDescription` and `LSUIElement` are in the generated Info.plist.
 - Monitor names sync through the `com.apple.developer.ubiquity-kvstore-identifier` entitlement
   (`$(TeamIdentifierPrefix)$(CFBundleIdentifier)`, in `Poly.entitlements`), which embeds a Mac

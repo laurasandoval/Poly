@@ -48,7 +48,7 @@ monitor.
 | Accessory row subtitle | Connected / Connecting… / Not Connected / Press a key, or switch it off and on (keyboard) / Click it, or switch it off and on (mouse, trackpad) |
 | Display submenu | Link Magic Mouse to Home Office · Rename… · Unlink All Accessories |
 | Accessory submenu | Rename… · Unlink from Home Office |
-| Menu | Open at Login · Quit Poly |
+| Menu | Open at Login · Check for Updates… · Quit Poly |
 | Rename alert | Rename “Home Office” · Rename / Cancel |
 | Link alert, one accessory | Link Magic Mouse to Home Office? · Your Mac will connect to Magic Mouse automatically when it’s connected to Home Office. · Link / Don’t Link |
 | Link alert, several | Link Magic Keyboard and Magic Mouse to Home Office? · Your Mac will connect to them automatically when it’s connected to Home Office. · a checkbox per accessory · Link / Don’t Link |

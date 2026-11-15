@@ -3,6 +3,26 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: silent updates
+
+**Tested locally:** a 9.0.0 build (development signing, throwaway Ed25519 key, feed on
+127.0.0.1) launched, found 9.0.1, downloaded it, and installed and relaunched as 9.0.1 within the
+same second (`downloaded 9.0.1; installing when quiet`, `installing update and relaunching`), with
+no window. Not yet tested: the Developer ID export, notarization and iCloud with the Developer ID
+profile, since this Mac has no Developer ID certificate yet.
+
+**Lessons.**
+- Sparkle 2's `updater(_:willInstallUpdateOnQuit:immediateInstallationBlock:)` returning YES is
+  the supported way for a background app to install without UI; returning NO lets Sparkle show
+  the update after `SUScheduledImpatientCheckInterval` instead. Gentle reminders
+  (`standardUserDriverShouldHandleShowingScheduledUpdate` returning NO) keep an update that needs
+  an administrator from popping up.
+- `SUEnableAutomaticChecks` in Info.plist skips Sparkle's "check automatically?" question.
+- A plain `http://127.0.0.1` feed works for testing; Sparkle only logs an HTTPS warning.
+- In zsh, `log` is a builtin: use `/usr/bin/log show`.
+- Apple's capability table lists iCloud key-value storage for Developer ID, so monitor names should
+  keep syncing in releases; confirm on the first one.
+
 ## 2026-11-15: asking before linking
 
 - **macOS has no notification style an app can choose.** Banners vs. persistent alerts is the
