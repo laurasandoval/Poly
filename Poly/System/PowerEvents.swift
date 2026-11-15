@@ -84,3 +84,34 @@ enum Lid {
         return (value?.takeRetainedValue() as? Bool) ?? false
     }
 }
+
+/// Power assertions Poly takes while a monitor is plugged in.
+final class Wakefulness {
+    private var idleSleepAssertion: IOPMAssertionID = 0
+
+    /// Keeps a closed MacBook from idle-sleeping while one of its monitors is plugged in; the display
+    /// still sleeps. A closed MacBook then only sleeps when it is unplugged (or put to sleep on purpose),
+    /// which is what lets Poly release everything whenever a closed MacBook sleeps. This assertion
+    /// type does not stop lid or unplug sleep.
+    func preventIdleSleep(_ prevent: Bool) {
+        if prevent, idleSleepAssertion == 0 {
+            let status = IOPMAssertionCreateWithName(
+                kIOPMAssertionTypePreventUserIdleSystemSleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                "Poly: a monitor with its keyboard and mouse is plugged in" as CFString, &idleSleepAssertion)
+            Log.switcher.info("preventing idle sleep: \(status == kIOReturnSuccess, privacy: .public)")
+        } else if !prevent, idleSleepAssertion != 0 {
+            IOPMAssertionRelease(idleSleepAssertion)
+            idleSleepAssertion = 0
+            Log.switcher.info("allowing idle sleep")
+        }
+    }
+
+    /// Wakes the Mac fully (display on), as a key press would, so a closed MacBook that was just
+    /// plugged in shows its lock screen while its keyboard connects.
+    func wakeDisplay() {
+        var assertion: IOPMAssertionID = 0
+        let status = IOPMAssertionDeclareUserActivity(
+            "Poly: connecting the monitor's keyboard and mouse" as CFString, kIOPMUserActiveLocal, &assertion)
+        Log.switcher.info("waking the display: \(status == kIOReturnSuccess, privacy: .public)")
+    }
+}

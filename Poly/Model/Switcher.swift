@@ -31,6 +31,7 @@ final class Switcher {
     @ObservationIgnored private let bluetooth = Bluetooth()
     @ObservationIgnored private let access = BluetoothAccess()
     @ObservationIgnored private let power = PowerEvents()
+    @ObservationIgnored private let wakefulness = Wakefulness()
     /// One running claim per plugged-in monitor. The token lets a cancelled claim that finishes late
     /// tell that a newer claim has replaced it.
     @ObservationIgnored private var claims: [String: (token: UUID, task: Task<Void, Never>)] = [:]
@@ -126,11 +127,14 @@ final class Switcher {
         reconcile(after: 2)
     }
 
+    /// Checks right away and then every 2 s for half a minute: after a wake (including the
+    /// background wake of a closed MacBook being plugged in) the monitor can take a while to show up.
     private func didWake() {
-        Log.switcher.info("woke")
+        Log.switcher.info("woke; lid closed: \(Lid.isClosed, privacy: .public)")
         sleeping = false
         holdReleasesUntil = .now.addingTimeInterval(15)
-        reconcile(after: 1)
+        reconcile()
+        for second in stride(from: 2.0, through: 30, by: 2) { reconcile(after: second) }
     }
 
     /// Coalesces bursts of Bluetooth notifications into one pass.
@@ -156,6 +160,7 @@ final class Switcher {
     private func reconcile() {
         guard bluetoothState == .ready, !sleeping else { return }
         let attached = Displays.attached()
+        let newlyAttached = Set(attached.map(\.id)).subtracting(attachedMonitors.map(\.id))
         if attached != attachedMonitors {
             let names = attached.map { "\($0.name) [\($0.id)]" }.joined(separator: ", ")
             Log.switcher.info("monitors attached: \(names.isEmpty ? "none" : names, privacy: .public)")
@@ -172,7 +177,16 @@ final class Switcher {
 
         for info in bluetooth.connectedAccessories() { learn(info) }
 
-        for monitor in monitors where attachedIDs.contains(monitor.id) {
+        let attachedKnown = monitors.filter { attachedIDs.contains($0.id) }
+        // Only a closed MacBook needs this (see Wakefulness); closing or opening the lid changes the
+        // screens, which runs reconcile again.
+        wakefulness.preventIdleSleep(!attachedKnown.isEmpty && Lid.isClosed)
+        // A closed MacBook just plugged in may still have its display off: light it, as a key press
+        // would, so the lock screen is there when the keyboard connects.
+        if Lid.isClosed, attachedKnown.contains(where: { newlyAttached.contains($0.id) }) {
+            wakefulness.wakeDisplay()
+        }
+        for monitor in attachedKnown {
             missingSince[monitor.id] = nil
             if monitor.accessories.contains(where: { !connected.contains($0.address) }) {
                 startClaim(monitor.id)
@@ -264,18 +278,17 @@ final class Switcher {
         guard bluetoothState == .ready else { return }
 
         let work = Task {
-            let attachedIDs: Set<String>
-            if Lid.isClosed && Lid.closingSleeps {
-                // A closed MacBook that sleeps has no monitor left. The display list can still show
-                // the one just unplugged at this point, so trust the power manager instead.
-                attachedIDs = []
-                Log.switcher.info("about to sleep with the lid closed and no monitor")
-            } else {
-                // Let the display list settle after an unplug.
-                try? await Task.sleep(for: .seconds(1))
-                attachedIDs = Set(Displays.attached().map(\.id))
-                Log.switcher.info("about to sleep; attached: \(attachedIDs.sorted().joined(separator: ", "), privacy: .public)")
-            }
+            // Poly keeps the Mac from idle-sleeping while a monitor is plugged in, so a closed
+            // MacBook that sleeps was unplugged (or put to sleep on purpose): let go of everything.
+            // The display list cannot be trusted here: it still lists a monitor unplugged a second
+            // ago (Documentation/Learnings.md). With the lid open, it is all there is.
+            let lidClosed = Lid.isClosed
+            if !lidClosed { try? await Task.sleep(for: .seconds(1)) }
+            let listed = Set(Displays.attached().map(\.id))
+            let attachedIDs: Set<String> = lidClosed ? [] : listed
+            Log.switcher.info(
+                "about to sleep; lid closed: \(lidClosed, privacy: .public), lid sleeps: \(Lid.closingSleeps, privacy: .public), listed: \(listed.sorted().joined(separator: ", "), privacy: .public)"
+            )
             for monitor in monitors where !attachedIDs.contains(monitor.id) {
                 if Task.isCancelled { return }
                 await releases[monitor.id]?.value
