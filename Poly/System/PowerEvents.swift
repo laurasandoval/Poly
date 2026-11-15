@@ -9,6 +9,8 @@ final class PowerEvents {
     var willSleep: ((_ done: @escaping () -> Void) -> Void)?
     /// Called after waking, or when a sleep that was announced did not happen.
     var didWake: (() -> Void)?
+    /// Asked before an idle sleep; returning false cancels it.
+    var mayIdleSleep: (() -> Bool)?
 
     private var rootPort: io_connect_t = 0
     private var notifier: io_object_t = 0
@@ -32,7 +34,11 @@ final class PowerEvents {
     fileprivate func handle(_ message: UInt32, argument: Int) {
         switch message {
         case Self.canSystemSleep:
-            IOAllowPowerChange(rootPort, argument)
+            if mayIdleSleep?() == false {
+                IOCancelPowerChange(rootPort, argument)
+            } else {
+                IOAllowPowerChange(rootPort, argument)
+            }
         case Self.systemWillSleep:
             guard let willSleep else {
                 IOAllowPowerChange(rootPort, argument)
@@ -73,7 +79,9 @@ enum Lid {
     static var isClosed: Bool { rootDomainFlag("AppleClamshellState") }
 
     /// A closed lid would put the Mac to sleep: no external display is keeping it awake. With the lid
-    /// closed, this is the power manager saying no monitor is attached.
+    /// closed, false is the power manager saying a monitor is attached, even during the brief
+    /// background wake of a closed MacBook being plugged in, when the display list does not show it
+    /// yet. (True is not trustworthy at sleep time: it lags an unplug.)
     static var closingSleeps: Bool { rootDomainFlag("AppleClamshellCausesSleep") }
 
     private static func rootDomainFlag(_ key: String) -> Bool {

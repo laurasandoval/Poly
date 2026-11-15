@@ -25,6 +25,8 @@ enum Displays {
         for display in displays.prefix(Int(count)) where CGDisplayIsBuiltin(display) == 0 {
             let vendor = CGDisplayVendorNumber(display)
             let product = CGDisplayModelNumber(display)
+            // The stand-in macOS lists while a closed MacBook has no lit display ('unkn' 'virt').
+            if vendor == 0x756E_6B6E { continue }
             let matches = panels.filter { $0.vendorID == vendor && $0.productID == product }
             // Two Studio Displays (office, kitchen) differ only by serial number. The registry's
             // alphanumeric serial is the most distinctive; CoreGraphics' EDID serial is often 0.

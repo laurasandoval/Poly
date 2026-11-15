@@ -40,6 +40,9 @@ final class Switcher {
     @ObservationIgnored private var missingSince: [String: Date] = [:]
     /// Displays take a few seconds to come back after login or wake; nothing is released before this.
     @ObservationIgnored private var holdReleasesUntil = Date.now.addingTimeInterval(15)
+    /// Right after a wake the display list can still show the monitor from before the sleep; no
+    /// claims until it has had a moment to catch up, or Poly could pair accessories another Mac uses.
+    @ObservationIgnored private var holdClaimsUntil = Date.distantPast
     @ObservationIgnored private var reconcileSoonPending = false
     @ObservationIgnored private var sleeping = false
 
@@ -66,6 +69,12 @@ final class Switcher {
             }
         }
         power.didWake = { [weak self] in self?.didWake() }
+        power.mayIdleSleep = { [weak self] in
+            guard let self, isClosedOnMonitor else { return true }
+            Log.switcher.info("closed on a monitor: cancelling idle sleep")
+            wakefulness.wakeDisplay()
+            return false
+        }
         power.start()
 
         NotificationCenter.default.addObserver(
@@ -83,6 +92,12 @@ final class Switcher {
         if connected.contains(accessory.address) { return .connected }
         guard isAttached(monitor) else { return .free }
         return needsNudge.contains(accessory.address) ? .needsNudge : .connecting
+    }
+
+    /// A closed MacBook with a monitor plugged in, per the power manager, on a Mac that has learned
+    /// at least one monitor.
+    private var isClosedOnMonitor: Bool {
+        !monitors.isEmpty && Lid.isClosed && !Lid.closingSleeps
     }
 
     var needsAttention: Bool {
@@ -130,9 +145,15 @@ final class Switcher {
     /// Checks right away and then every 2 s for half a minute: after a wake (including the
     /// background wake of a closed MacBook being plugged in) the monitor can take a while to show up.
     private func didWake() {
-        Log.switcher.info("woke; lid closed: \(Lid.isClosed, privacy: .public)")
+        Log.switcher.info(
+            "woke; lid closed: \(Lid.isClosed, privacy: .public), lid sleeps: \(Lid.closingSleeps, privacy: .public)")
         sleeping = false
         holdReleasesUntil = .now.addingTimeInterval(15)
+        holdClaimsUntil = .now.addingTimeInterval(1.5)
+        // Plugging a closed MacBook into a monitor wakes it for only a second or so, in the
+        // background, with the display still off and missing from the display list. Wake it fully,
+        // as a key press would, so the display lights up and its accessories can connect.
+        if isClosedOnMonitor { wakefulness.wakeDisplay() }
         reconcile()
         for second in stride(from: 2.0, through: 30, by: 2) { reconcile(after: second) }
     }
@@ -186,9 +207,11 @@ final class Switcher {
         if Lid.isClosed, attachedKnown.contains(where: { newlyAttached.contains($0.id) }) {
             wakefulness.wakeDisplay()
         }
+        let claimsHeld = holdClaimsUntil > .now
+        if claimsHeld { reconcile(after: holdClaimsUntil.timeIntervalSinceNow + 0.1) }
         for monitor in attachedKnown {
             missingSince[monitor.id] = nil
-            if monitor.accessories.contains(where: { !connected.contains($0.address) }) {
+            if !claimsHeld, monitor.accessories.contains(where: { !connected.contains($0.address) }) {
                 startClaim(monitor.id)
             }
         }
