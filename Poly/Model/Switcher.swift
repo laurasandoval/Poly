@@ -285,20 +285,39 @@ final class Switcher {
         while !Task.isCancelled, !sleeping, let monitor = monitors.first(where: { $0.id == monitorID }) {
             let waiting = monitor.accessories.filter { !bluetooth.isConnected($0.address) }
             if waiting.isEmpty { break }
+            // Overlapped, keyboard first: each accessory starts once the previous one's radio
+            // link is up (or after 3 s), so the mouse pairs while the keyboard finishes instead of
+            // after it. A controller pages one device at a time, so they are not started at once.
+            var attempts: [(accessory: Accessory, task: Task<TakeResult, Never>)] = []
+            var previous: Gate?
             for accessory in waiting {
-                if Task.isCancelled { break }
-                let result = await bluetooth.take(accessory.address) { passkey in
-                    Notifier.typePasskey(passkey, on: accessory)
+                let after = previous
+                let paged = Gate()
+                previous = paged
+                let task = Task {
+                    await after?.wait(upTo: 3)
+                    return await bluetooth.take(accessory.address, onPaged: { paged.open() }) { passkey in
+                        Notifier.typePasskey(passkey, on: accessory)
+                    }
                 }
-                Log.switcher.info("take \(accessory.name, privacy: .public): \(String(describing: result), privacy: .public)")
-                refreshConnected()
-                if result == .connected {
-                    needsNudge.remove(accessory.address)
-                    Notifier.clearNudge(for: accessory)
-                } else if Date.now.timeIntervalSince(started) > 20, !needsNudge.contains(accessory.address) {
-                    needsNudge.insert(accessory.address)
-                    Notifier.nudge(accessory)
+                attempts.append((accessory, task))
+            }
+            let tasks = attempts.map(\.task)
+            await withTaskCancellationHandler {
+                for (accessory, task) in attempts {
+                    let result = await task.value
+                    Log.switcher.info("take \(accessory.name, privacy: .public): \(String(describing: result), privacy: .public)")
+                    refreshConnected()
+                    if result == .connected {
+                        needsNudge.remove(accessory.address)
+                        Notifier.clearNudge(for: accessory)
+                    } else if Date.now.timeIntervalSince(started) > 20, !needsNudge.contains(accessory.address) {
+                        needsNudge.insert(accessory.address)
+                        Notifier.nudge(accessory)
+                    }
                 }
+            } onCancel: {
+                for task in tasks { task.cancel() }
             }
             let elapsed = Date.now.timeIntervalSince(started)
             try? await Task.sleep(for: .seconds(elapsed < 120 ? 1 : elapsed < 600 ? 5 : 20))
@@ -409,6 +428,28 @@ final class Switcher {
     private func save() {
         guard let data = try? JSONEncoder().encode(monitors) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+}
+
+/// Opens once; waiters resume then, or after their timeout.
+private final class Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func open() {
+        guard !isOpen else { return }
+        isOpen = true
+        for waiter in waiters { waiter.resume() }
+        waiters.removeAll()
+    }
+
+    func wait(upTo seconds: Double) async {
+        guard !isOpen else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            open()
+        }
+        await withCheckedContinuation { waiters.append($0) }
     }
 }
 

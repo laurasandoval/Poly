@@ -63,7 +63,12 @@ final class Bluetooth: NSObject {
     // MARK: Taking and releasing
 
     /// Connects an accessory to this Mac, pairing it first when this Mac holds no bond.
-    func take(_ address: String, onPasskey: @escaping (UInt32) -> Void) async -> TakeResult {
+    /// `onPaged` runs once the radio link is up (or the attempt ended), when the controller is free
+    /// to page the next accessory while this one finishes pairing.
+    func take(
+        _ address: String, onPaged: @escaping () -> Void = {}, onPasskey: @escaping (UInt32) -> Void
+    ) async -> TakeResult {
+        defer { onPaged() }
         guard var device = device(address) else { return .failed }
         if device.isConnected() { return .connected }
 
@@ -87,7 +92,7 @@ final class Bluetooth: NSObject {
             guard answer == kIOReturnSuccess else { return .unreachable }
         }
 
-        let paired = await pair(device, onPasskey: onPasskey)
+        let paired = await pair(device, onConnected: onPaged, onPasskey: onPasskey)
         Log.bluetooth.info("\(address, privacy: .public) pairing \(paired ? "succeeded" : "failed", privacy: .public)")
         guard paired else { return .failed }
         if !device.isConnected() {
@@ -150,11 +155,14 @@ final class Bluetooth: NSObject {
     }
 
     /// Pairs, stopping early if the task is cancelled (the monitor was unplugged meanwhile).
-    private func pair(_ device: IOBluetoothDevice, onPasskey: @escaping (UInt32) -> Void) async -> Bool {
+    private func pair(
+        _ device: IOBluetoothDevice, onConnected: @escaping () -> Void, onPasskey: @escaping (UInt32) -> Void
+    ) async -> Bool {
         let slot = PairingSlot()
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                let attempt = Pairing(device: device, onPasskey: onPasskey) { [weak self] pairing, success in
+                let attempt = Pairing(device: device, onConnected: onConnected, onPasskey: onPasskey) {
+                    [weak self] pairing, success in
                     self?.pending.remove(pairing)
                     continuation.resume(returning: success)
                 }
@@ -227,9 +235,14 @@ final class Bluetooth: NSObject {
 private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
     private let pair: IOBluetoothDevicePair
     private let onPasskey: (UInt32) -> Void
+    private let onConnected: () -> Void
     private var handler: ((Pairing, Bool) -> Void)?
 
-    init(device: IOBluetoothDevice, onPasskey: @escaping (UInt32) -> Void, handler: @escaping (Pairing, Bool) -> Void) {
+    init(
+        device: IOBluetoothDevice, onConnected: @escaping () -> Void, onPasskey: @escaping (UInt32) -> Void,
+        handler: @escaping (Pairing, Bool) -> Void
+    ) {
+        self.onConnected = onConnected
         pair = IOBluetoothDevicePair(device: device)
         self.onPasskey = onPasskey
         self.handler = handler
@@ -263,6 +276,9 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
         pair.delegate = nil
         handler(self, success)
     }
+
+    /// Paging is done and the link is up; the rest of pairing (keys, encryption) runs on it.
+    func devicePairingConnected(_ sender: Any!) { onConnected() }
 
     func devicePairingFinished(_ sender: Any!, error: IOReturn) {
         Log.bluetooth.info("pairing finished: \(Log.hex(error), privacy: .public)")
