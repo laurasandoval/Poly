@@ -1,6 +1,7 @@
 import AppKit
 import CoreBluetooth
 import Observation
+import os
 
 /// Poly's whole behavior: a monitor's accessories follow the Mac plugged into it.
 ///
@@ -126,6 +127,7 @@ final class Switcher {
     }
 
     private func didWake() {
+        Log.switcher.info("woke")
         sleeping = false
         holdReleasesUntil = .now.addingTimeInterval(15)
         reconcile(after: 1)
@@ -153,7 +155,12 @@ final class Switcher {
 
     private func reconcile() {
         guard bluetoothState == .ready, !sleeping else { return }
-        attachedMonitors = Displays.attached()
+        let attached = Displays.attached()
+        if attached != attachedMonitors {
+            let names = attached.map { "\($0.name) [\($0.id)]" }.joined(separator: ", ")
+            Log.switcher.info("monitors attached: \(names.isEmpty ? "none" : names, privacy: .public)")
+            attachedMonitors = attached
+        }
         refreshConnected()
 
         let attachedIDs = Set(attachedMonitors.map(\.id))
@@ -185,6 +192,7 @@ final class Switcher {
         missingSince[monitor.id] = since
         let releaseAt = max(since.addingTimeInterval(2), holdReleasesUntil)
         guard releaseAt <= .now else { return reconcile(after: releaseAt.timeIntervalSinceNow + 0.1) }
+        Log.switcher.info("releasing accessories of \(monitor.name, privacy: .public) [\(monitor.id, privacy: .public)]")
         releases[monitor.id] = Task {
             await release(monitor.id)
             releases[monitor.id] = nil
@@ -223,6 +231,7 @@ final class Switcher {
                 let result = await bluetooth.take(accessory.address) { passkey in
                     Notifier.typePasskey(passkey, on: accessory)
                 }
+                Log.switcher.info("take \(accessory.name, privacy: .public): \(String(describing: result), privacy: .public)")
                 refreshConnected()
                 if result == .connected {
                     needsNudge.remove(accessory.address)
@@ -256,6 +265,7 @@ final class Switcher {
             // Let the display list settle after an unplug.
             try? await Task.sleep(for: .seconds(1))
             let attachedIDs = Set(Displays.attached().map(\.id))
+            Log.switcher.info("about to sleep; attached: \(attachedIDs.sorted().joined(separator: ", "), privacy: .public)")
             for monitor in monitors where !attachedIDs.contains(monitor.id) {
                 if Task.isCancelled { return }
                 await releases[monitor.id]?.value
@@ -272,8 +282,18 @@ final class Switcher {
 
     // MARK: Learning
 
+    /// Also clears nudges for anything that connected, however it connected (by Poly, or by hand).
     private func refreshConnected() {
-        connected = Set(bluetooth.connectedAccessories().map(\.address))
+        let now = Set(bluetooth.connectedAccessories().map(\.address))
+        if now != connected { connected = now }
+        let nudged = needsNudge.intersection(now)
+        guard !nudged.isEmpty else { return }
+        needsNudge.subtract(nudged)
+        for monitor in monitors {
+            for accessory in monitor.accessories where nudged.contains(accessory.address) {
+                Notifier.clearNudge(for: accessory)
+            }
+        }
     }
 
     /// Records that a connected accessory belongs to the monitor plugged in now. Nothing is learned
@@ -303,6 +323,7 @@ final class Switcher {
                     accessories: [accessory]))
         }
         monitors = updated
+        Log.switcher.info("learned \(info.name, privacy: .public) [\(info.address, privacy: .public)] for \(attached.name, privacy: .public) [\(attached.id, privacy: .public)]")
         if let monitor = monitors.first(where: { $0.id == attached.id }) { Notifier.learned(monitor) }
     }
 
