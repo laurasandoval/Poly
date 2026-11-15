@@ -197,7 +197,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Poly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Poly connects your monitor's keyboard, mouse and trackpad to this Mac when you plug in, and lets go of them when you unplug.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Poly connects your keyboard, mouse, and trackpad when your Mac is connected to the external display they’re linked to, and frees them for other Macs when it’s disconnected.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -231,7 +231,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Poly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Poly connects your monitor's keyboard, mouse and trackpad to this Mac when you plug in, and lets go of them when you unplug.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Poly connects your keyboard, mouse, and trackpad when your Mac is connected to the external display they’re linked to, and frees them for other Macs when it’s disconnected.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
