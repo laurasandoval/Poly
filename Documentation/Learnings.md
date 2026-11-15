@@ -3,6 +3,32 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: v1.0 works end to end; speed and size
+
+**Confirmed on hardware** (MacBook Air and MacBook Pro, closed, sharing one Studio Display): unplug
+releases before sleep, plugging in wakes the closed Mac, and the accessories connect. Tagged
+`v1.0`.
+
+**Where the time goes** (MacBook Pro log, plugged in closed at 15:43:14.53):
+
+| Step | Elapsed |
+|---|---|
+| Wake, `waking the display` | 0 s |
+| Display list shows the Studio Display, claim starts | 1.6 s |
+| Keyboard answer check (about 10 ms), pairing finished | 5.6 s |
+| Mouse pairing finished (it waits for the keyboard) | 12.4 s |
+
+Pairing takes 2 to 4 s for the keyboard and 3 to 8 s for the mouse. The first change: when a
+closed MacBook wakes with the power manager reporting a monitor and macOS lists no real display
+yet, Poly claims right away for the known monitor the display controller reports, or the only
+monitor it knows, which skips the 1.6 s wait.
+
+**Size.** The Release app was 3.0 MB: the asset catalog 1.7 MB (1.46 MB of it two flattened 1024 px
+renders of the Icon Composer icon; the Liquid Glass layers are about 3 KB) and a universal,
+unstripped 1.2 MB binary. `DEPLOYMENT_POSTPROCESSING = YES` (strip), `-Osize`, and building only
+the installing Mac's architecture bring the binary to 350 KB and the app to 2.1 MB. A macOS 26
+deployment target does not drop the flattened icon renders (measured), so it would buy nothing.
+
 ## 2026-11-15: releasing works; a closed MacBook being plugged in did not wake
 
 **Evidence** (logs from both MacBooks). Every unplug now logs `about to sleep; lid closed: true`
