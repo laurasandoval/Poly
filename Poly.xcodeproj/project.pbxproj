@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5A1B2C3D4E5F60718293A4B1 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 5A1B2C3D4E5F60718293A4B4 /* Sparkle */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		B8DF366783AD4B91BC57FFCE /* Poly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Poly.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -21,6 +25,17 @@
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5A1B2C3D4E5F60718293A4B2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A1B2C3D4E5F60718293A4B1 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		2C71EE8D0F84B9AAF66332B0 = {
@@ -47,6 +62,7 @@
 			buildConfigurationList = 1C6D295564FF4CDED187A742 /* Build configuration list for PBXNativeTarget "Poly" */;
 			buildPhases = (
 				AFA29B0B91D71EF238D98212 /* Sources */,
+				5A1B2C3D4E5F60718293A4B2 /* Frameworks */,
 				A56CE73FC0687398C5648FCF /* Resources */,
 			);
 			buildRules = (
@@ -58,6 +74,7 @@
 			);
 			name = Poly;
 			packageProductDependencies = (
+				5A1B2C3D4E5F60718293A4B4 /* Sparkle */,
 			);
 			productName = Poly;
 			productReference = B8DF366783AD4B91BC57FFCE /* Poly.app */;
@@ -87,6 +104,9 @@
 			);
 			mainGroup = 2C71EE8D0F84B9AAF66332B0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5A1B2C3D4E5F60718293A4B3 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D01EDF46BBEA5A1505531876 /* Products */;
 			projectDirPath = "";
@@ -194,6 +214,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Poly-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Poly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -205,6 +226,8 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.0;
+				POLY_FEED_URL = "https://github.com/laurasandoval/poly-releases/releases/latest/download/appcast.xml";
+				SPARKLE_PUBLIC_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = work.lau.poly;
 				PRODUCT_NAME = Poly;
 				SDKROOT = macosx;
@@ -228,6 +251,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Poly-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Poly;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -239,6 +263,8 @@
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MARKETING_VERSION = 1.0;
+				POLY_FEED_URL = "https://github.com/laurasandoval/poly-releases/releases/latest/download/appcast.xml";
+				SPARKLE_PUBLIC_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = work.lau.poly;
 				PRODUCT_NAME = Poly;
 				SDKROOT = macosx;
@@ -328,6 +354,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5A1B2C3D4E5F60718293A4B3 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5A1B2C3D4E5F60718293A4B4 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A1B2C3D4E5F60718293A4B3 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 09225236E5ABB13A6119B537 /* Project object */;
 }
