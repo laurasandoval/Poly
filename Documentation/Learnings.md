@@ -8,8 +8,10 @@ you: the symptom, the cause, how it was confirmed, and what the code does about 
 **Tested locally:** a 9.0.0 build (development signing, throwaway Ed25519 key, feed on
 127.0.0.1) launched, found 9.0.1, downloaded it, and installed and relaunched as 9.0.1 within the
 same second (`downloaded 9.0.1; installing when quiet`, `installing update and relaunching`), with
-no window. Not yet tested: the Developer ID export, notarization and iCloud with the Developer ID
-profile, since this Mac has no Developer ID certificate yet.
+no window. **Released 0.1** (build 44): the Developer ID export embeds a profile with the iCloud
+key-value entitlement, notarization was accepted for the app and the DMG, Gatekeeper accepts both,
+and `releases/latest/download/appcast.xml` and `Poly.dmg` download anonymously. Still to see on a
+real Mac: names syncing in a Developer ID build, and the first silent update to 0.2.
 
 **Lessons.**
 - Sparkle 2's `updater(_:willInstallUpdateOnQuit:immediateInstallationBlock:)` returning YES is
