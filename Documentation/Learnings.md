@@ -3,6 +3,29 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: accessories on a cable
+
+**Symptom** (0.2 on macOS 12, the girlfriend's Mac): a Magic Keyboard used on its cable stayed
+"Connecting…", the connection dropped for a moment, no Link question appeared, and after the
+cable was unplugged the keyboard was gone. The second try (unplugged, then plugged) asked to link.
+
+**Cause**, reproduced live on the owner's Mac with a Magic Keyboard and Magic Mouse on cables:
+on a cable an accessory talks over USB and `IOBluetoothDevice.isConnected()` is false. Poly saw a
+linked accessory "not connected" and took it: the bonded connect timed out (`0xe00002d6`), the
+accessory still answered a name request, so Poly treated the bond as stale, **forgot it**
+("forgotten, still paired: false") and tried to re-pair, which fails on a cable (`0x4`) every
+~30 s. Cabled accessories were also missing from `connectedAccessories()`, so they were never
+offered for linking, and without its bond the accessory could not reconnect after the cable came
+out.
+
+**What macOS publishes:** each cabled Magic accessory appears as an
+`AppleDeviceManagementHIDEventService` with `Transport` "USB", `BluetoothDevice` true and
+`DeviceAddress` ("38-09-fb-16-2e-a2"). Product IDs are the same over USB and Bluetooth (801, 617).
+The Studio Display is also an Apple USB HID device (product 4372).
+
+**Fix.** `Cables.swift` reads the registry (no permission needed) and watches it; cabled
+accessories count as connected, are never taken or forgotten, and are offered for linking.
+
 ## 2026-11-15: a crash on a Bluetooth connection notification
 
 **Symptom.** A crash report (`EXC_BREAKPOINT`, `_dispatch_assert_queue_fail` under

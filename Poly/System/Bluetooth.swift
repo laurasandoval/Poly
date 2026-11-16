@@ -47,19 +47,65 @@ final class Bluetooth: NSObject {
     private let connectPageTimeout: BluetoothHCIPageTimeout = 0x1F40
     private let probePageTimeout: BluetoothHCIPageTimeout = 0x1000
 
+    /// Accessories plugged in by cable, which Bluetooth calls disconnected (`Cables`).
+    private let cables = Cables()
+
     func start() {
         guard connectNotification == nil else { return }
         connectNotification = IOBluetoothDevice.register(
             forConnectNotifications: self, selector: #selector(deviceDidConnect(_:device:)))
+        cables.onChange = { [weak self] in self?.onConnectionsChanged?() }
+        cables.start()
     }
 
-    func isConnected(_ address: String) -> Bool { device(address)?.isConnected() ?? false }
+    /// Connected over Bluetooth, or plugged in by cable.
+    func isConnected(_ address: String) -> Bool {
+        device(address)?.isConnected() ?? false || isCabled(address)
+    }
     func isPaired(_ address: String) -> Bool { device(address)?.isPaired() ?? false }
+    func isCabled(_ address: String) -> Bool { cabledAddresses().contains(address) }
 
-    /// Apple keyboards, mice and trackpads connected to this Mac right now.
+    /// Accessories on a cable: by the address macOS publishes for them or, for an Apple USB device
+    /// without one, the single paired Apple accessory with the same product ID.
+    private func cabledAddresses() -> Set<String> {
+        let published = Cables.accessories()
+        var result = Set(published.keys)
+        let covered = Set(published.values.compactMap(\.productID))
+        let unmatched = Cables.usbProductIDs().subtracting(covered)
+        guard !unmatched.isEmpty else { return result }
+        let paired = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []).compactMap(Self.accessoryInfo)
+        for id in unmatched {
+            let matches = paired.filter { $0.productID == id }
+            if matches.count == 1 { result.insert(matches[0].address) }
+        }
+        return result
+    }
+    /// Paired with this Mac and not on a cable to it: one Poly may forget to let another Mac take it.
+    func isReleasable(_ address: String) -> Bool { isPaired(address) && !isCabled(address) }
+
+    /// Apple keyboards, mice and trackpads connected to this Mac right now, over Bluetooth or a cable.
     func connectedAccessories() -> [AccessoryInfo] {
         let devices = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
-        return devices.filter { $0.isConnected() }.compactMap(Self.accessoryInfo)
+        let cabled = cabledAddresses()
+        var found = devices.filter { device in
+            device.isConnected() || device.addressString.map { cabled.contains(Self.normalized($0)) } ?? false
+        }.compactMap(Self.accessoryInfo)
+        for cabled in Cables.accessories().values where !found.contains(where: { $0.address == cabled.address }) {
+            if let info = device(cabled.address).flatMap(Self.accessoryInfo) {
+                found.append(info)
+            } else if let kind = Self.kind(named: cabled.name) {
+                // Not paired yet (or its records are not known): what the cable reports is enough.
+                found.append(AccessoryInfo(address: cabled.address, name: cabled.name, kind: kind, productID: cabled.productID))
+            }
+        }
+        return found
+    }
+
+    private static func kind(named name: String) -> Accessory.Kind? {
+        if name.localizedCaseInsensitiveContains("Keyboard") { return .keyboard }
+        if name.localizedCaseInsensitiveContains("Trackpad") { return .trackpad }
+        if name.localizedCaseInsensitiveContains("Mouse") { return .mouse }
+        return nil
     }
 
     // MARK: Taking and releasing
@@ -76,7 +122,7 @@ final class Bluetooth: NSObject {
             onPaged()
         }
         guard var device = device(address) else { return .failed }
-        if device.isConnected() { return .connected }
+        if device.isConnected() || isCabled(address) { return .connected }
 
         if device.isPaired() {
             let status = await openConnection(device)
@@ -112,6 +158,10 @@ final class Bluetooth: NSObject {
     /// they are unpaired go back to pairing mode by themselves.
     func forget(_ address: String) async {
         guard let device = device(address), device.isPaired() || device.isConnected() else { return }
+        // On a cable it is in use right here; unpairing would only interrupt it.
+        guard !isCabled(address) else {
+            return Log.bluetooth.info("\(address, privacy: .public) is on a cable; not forgetting")
+        }
         operations += 1
         defer { operations -= 1 }
         let box = UncheckedBox(device)

@@ -37,6 +37,7 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 | `Poly/Model/Switcher.swift` | All behavior: reconcile, claim, release, sleep, learning |
 | `Poly/Model/Monitor.swift` | Saved monitors and accessories, status |
 | `Poly/System/Bluetooth.swift` | IOBluetooth: take, forget, recognizing accessories |
+| `Poly/System/Cables.swift` | Accessories plugged in by cable (USB), from the IORegistry |
 | `Poly/System/Displays.swift` | Attached external monitors and their identity |
 | `Poly/System/PowerEvents.swift` | Sleep and wake from IOKit power management |
 | `Poly/System/SystemIcons.swift` | System artwork for monitors and accessories |

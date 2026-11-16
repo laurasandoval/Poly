@@ -40,6 +40,17 @@ this Mac holds, and act on the difference. A missed event is repaired by the nex
 | Woke up | `kIOMessageSystemHasPoweredOn` (and `SystemWillNotSleep`) |
 | Bluetooth permission or power changed | Core Bluetooth `centralManagerDidUpdateState` |
 
+### On a cable
+
+An Apple keyboard, mouse or trackpad plugged in by cable (into the Mac, or into the display's USB
+ports) talks over USB, and Bluetooth calls it disconnected. Poly counts it as **connected**: it is
+never taken over Bluetooth, never forgotten, offered for linking like any other, and shows
+"Connected". macOS publishes it as an `AppleDeviceManagementHIDEventService` with `Transport` USB
+and its Bluetooth address in `DeviceAddress`; where that is missing, an Apple USB HID device is
+matched to the one paired accessory with the same product ID. Plugging or unplugging a cable runs
+reconcile (IOKit matching notifications). Unplugged from the cable, the accessory reconnects over
+Bluetooth with the bond macOS made through the cable.
+
 ### Plugged in: claim
 
 For each accessory of the attached monitor that is not connected, keyboard first, then mouse,

@@ -326,7 +326,7 @@ final class Switcher {
     /// or a slow wake does not hand them away.
     private func considerReleasing(_ monitor: Monitor) {
         guard releases[monitor.id] == nil else { return }
-        guard monitor.accessories.contains(where: { bluetooth.isPaired($0.address) }) else {
+        guard monitor.accessories.contains(where: { bluetooth.isReleasable($0.address) }) else {
             missingSince[monitor.id] = nil
             return
         }
@@ -409,7 +409,7 @@ final class Switcher {
 
     private func release(_ monitorID: String) async {
         guard let monitor = monitors.first(where: { $0.id == monitorID }) else { return }
-        for accessory in monitor.accessories where bluetooth.isPaired(accessory.address) {
+        for accessory in monitor.accessories where bluetooth.isReleasable(accessory.address) {
             await bluetooth.forget(accessory.address)
         }
         refreshConnected()
