@@ -34,7 +34,9 @@ same second (`downloaded 9.0.1; installing when quiet`, `installing update and r
 no window. **Released 0.1** (build 44): the Developer ID export embeds a profile with the iCloud
 key-value entitlement, notarization was accepted for the app and the DMG, Gatekeeper accepts both,
 and `releases/latest/download/appcast.xml` and `Poly.dmg` download anonymously. Still to see on a
-real Mac: names syncing in a Developer ID build, and the first silent update to 0.2.
+real Mac: names syncing in a Developer ID build. **Updated 0.1 to 0.2 for real** on the owner's
+Mac: with `SULastCheckTime` set back, 0.1 fetched the feed from GitHub, downloaded 0.2, installed
+and relaunched in under a second, with nothing on screen.
 
 **Lessons.**
 - Sparkle 2's `updater(_:willInstallUpdateOnQuit:immediateInstallationBlock:)` returning YES is
