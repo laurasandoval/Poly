@@ -3,6 +3,19 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: a crash on a Bluetooth connection notification
+
+**Symptom.** A crash report (`EXC_BREAKPOINT`, `_dispatch_assert_queue_fail` under
+`swift_task_isCurrentExecutor`) from the development build: an IOBluetooth connection notification
+(`-[IOBluetoothConcreteUserNotification objcNotificationRoutine:]`, posted from
+`-[IOBluetoothCoreBluetoothCoordinator centralManager:connectionEventDidOccur:forPeripheral:]`)
+arrived on `com.apple.bluetooth.iobluetooth.coordinatorQueue`, not the main thread, and Swift 6's
+main-actor check stopped Poly. 0.1 has the same code.
+
+**Lesson.** IOBluetooth callbacks are not guaranteed to arrive on the main run loop on current
+macOS, whatever the older documentation implies. **Fix.** The notification and pairing delegate
+callbacks are `nonisolated` and hop to the main actor (`onMainActor` in `Bluetooth.swift`).
+
 ## 2026-11-15: macOS 12 support
 
 The owner's girlfriend's Mac runs macOS 12.7.6. What stood in the way, from a build at a macOS

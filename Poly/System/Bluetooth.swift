@@ -198,7 +198,21 @@ final class Bluetooth: NSObject {
         }
     }
 
-    @objc private func deviceDidConnect(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+    // IOBluetooth can deliver these on its own queue (a crash on macOS 27 showed
+    // com.apple.bluetooth.iobluetooth.coordinatorQueue), so they hop to the main actor first.
+    @objc nonisolated private func deviceDidConnect(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        let device = UncheckedBox(device)
+        onMainActor { self.connected(device.value) }
+    }
+
+    @objc nonisolated private func deviceDidDisconnect(
+        _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
+    ) {
+        let both = UncheckedBox((notification, device))
+        onMainActor { self.disconnected(both.value.0, both.value.1) }
+    }
+
+    private func connected(_ device: IOBluetoothDevice) {
         if let address = device.addressString.map(Self.normalized), disconnectNotifications[address] == nil {
             disconnectNotifications[address] = device.register(
                 forDisconnectNotification: self, selector: #selector(deviceDidDisconnect(_:device:)))
@@ -206,7 +220,7 @@ final class Bluetooth: NSObject {
         onConnectionsChanged?()
     }
 
-    @objc private func deviceDidDisconnect(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+    private func disconnected(_ notification: IOBluetoothUserNotification, _ device: IOBluetoothDevice) {
         notification.unregister()
         if let address = device.addressString.map(Self.normalized) { disconnectNotifications[address] = nil }
         onConnectionsChanged?()
@@ -305,33 +319,36 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
         handler(self, success)
     }
 
-    func devicePairingStarted(_ sender: Any!) { Log.bluetooth.info("pairing started") }
-    func devicePairingConnecting(_ sender: Any!) { Log.bluetooth.info("pairing connecting") }
+    // Delegate callbacks hop to the main actor too, in case IOBluetooth sends them from its queue.
+    nonisolated func devicePairingStarted(_ sender: Any!) { Log.bluetooth.info("pairing started") }
+    nonisolated func devicePairingConnecting(_ sender: Any!) { Log.bluetooth.info("pairing connecting") }
 
     /// Paging is done and the link is up; the rest of pairing (keys, encryption) runs on it.
-    func devicePairingConnected(_ sender: Any!) {
+    nonisolated func devicePairingConnected(_ sender: Any!) {
         Log.bluetooth.info("pairing connected")
-        onConnected()
+        onMainActor { self.onConnected() }
     }
 
-    func devicePairingFinished(_ sender: Any!, error: IOReturn) {
+    nonisolated func devicePairingFinished(_ sender: Any!, error: IOReturn) {
         Log.bluetooth.info("pairing finished: \(Log.hex(error), privacy: .public)")
-        finish(error == kIOReturnSuccess)
+        onMainActor { self.finish(error == kIOReturnSuccess) }
     }
 
-    func devicePairingUserConfirmationRequest(_ sender: Any!, numericValue: BluetoothNumericValue) {
-        pair.replyUserConfirmation(true)
+    nonisolated func devicePairingUserConfirmationRequest(_ sender: Any!, numericValue: BluetoothNumericValue) {
+        onMainActor { self.pair.replyUserConfirmation(true) }
     }
 
-    func devicePairingPINCodeRequest(_ sender: Any!) {
-        var pin = BluetoothPINCode()
-        withUnsafeMutableBytes(of: &pin.data) { bytes in
-            for index in 0..<4 { bytes[index] = UInt8(ascii: "0") }
+    nonisolated func devicePairingPINCodeRequest(_ sender: Any!) {
+        onMainActor {
+            var pin = BluetoothPINCode()
+            withUnsafeMutableBytes(of: &pin.data) { bytes in
+                for index in 0..<4 { bytes[index] = UInt8(ascii: "0") }
+            }
+            self.pair.replyPINCode(4, pinCode: &pin)
         }
-        pair.replyPINCode(4, pinCode: &pin)
     }
 
-    func devicePairingUserPasskeyNotification(_ sender: Any!, passkey: BluetoothPasskey) {
+    nonisolated func devicePairingUserPasskeyNotification(_ sender: Any!, passkey: BluetoothPasskey) {
         Log.bluetooth.info("pairing asked to type a passkey")
     }
 }
@@ -339,6 +356,15 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
 /// Hands the running pairing to the cancellation handler (a main-actor class, so it is Sendable).
 private final class PairingSlot {
     var pairing: Pairing?
+}
+
+/// Runs `work` on the main actor: at once when already on the main thread, otherwise next.
+nonisolated private func onMainActor(_ work: @escaping @MainActor @Sendable () -> Void) {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { work() }
+    } else {
+        DispatchQueue.main.async { work() }
+    }
 }
 
 /// Carries a non-Sendable IOBluetooth object to the removal queue. Only that queue touches it

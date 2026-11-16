@@ -48,7 +48,8 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 | `Poly/AppIcon.icon` | Icon Composer app icon (SVG layers) |
 
 The project uses folder-synchronized groups: new files under `Poly/` need no project edits.
-Swift 6, main-actor default isolation; IOBluetooth and IOKit callbacks arrive on the main run loop.
+Swift 6, main-actor default isolation. IOBluetooth callbacks can arrive on IOBluetooth's own queue:
+make them `nonisolated` and hop to the main actor (see Learnings).
 
 ## Build and verify
 
