@@ -27,7 +27,7 @@ final class Updater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate
 
     func checkForUpdates() {
         guard isEnabled else { return }
-        NSApp.activate()
+        NSApp.activateForPrompt()
         controller.checkForUpdates(nil)
     }
 
@@ -52,7 +52,7 @@ final class Updater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         guard let install else { return }
         guard isQuiet(), NSApp.modalWindow == nil else {
             Task {
-                try? await Task.sleep(for: .seconds(60))
+                await pause(60)
                 installWhenQuiet()
             }
             return

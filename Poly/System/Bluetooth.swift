@@ -88,7 +88,7 @@ final class Bluetooth: NSObject {
             Log.bluetooth.info("\(address, privacy: .public) answer check: \(Log.hex(answer), privacy: .public)")
             guard answer == kIOReturnSuccess else { return .unreachable }
             await forget(address)
-            try? await Task.sleep(for: .milliseconds(500))  // re-pairing inside the unbond window fails
+            await pause(0.5)  // re-pairing inside the unbond window fails
             guard let fresh = self.device(address) else { return .failed }
             device = fresh
         } else {
@@ -149,7 +149,7 @@ final class Bluetooth: NSObject {
         let deadline = Date.now.addingTimeInterval(seconds)
         while !device.isConnected() {
             guard Date.now < deadline, !Task.isCancelled else { return false }
-            try? await Task.sleep(for: .milliseconds(250))
+            await pause(0.25)
         }
         return true
     }
@@ -281,12 +281,12 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
         // `devicePairingConnected:` does not come when the answer check has just brought the link
         // up (first overlapped test), so the next accessory may also start shortly after this one.
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
+            await pause(0.3)
             self?.onConnected()
         }
         // IOBluetoothDevicePair has no timeout of its own; a first handoff can take 30 to 45 seconds.
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(60))
+            await pause(60)
             self?.cancel()
         }
     }

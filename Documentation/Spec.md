@@ -196,16 +196,19 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
 - **Open at Login** is turned on at the first launch from an Applications folder, since Poly only
   works while running, and stays however the person sets it after that. Runs from Xcode's build
   folder never register a login item.
-- Menu rows use `.labelStyle(.titleAndIcon)`: from macOS 26, menu item images are hidden unless
-  their visibility preference says otherwise.
+- Menu items ask to show their images (`preferredImageVisibility`): from macOS 26, menu item images
+  are hidden otherwise. Subtitles are the standard ones from macOS 14.4; earlier, a smaller second
+  line of the title.
 
 Notifications (permission asked at launch): only "Couldn't connect to …" for an accessory that
 does not answer. Everything uses the person's names for monitors and accessories.
 
 ## Platform
 
-- macOS 14 or later, Apple silicon or Intel. SwiftUI `MenuBarExtra`, Observation, Swift 6 with
-  main-actor default isolation. IOBluetooth for pairing (Core Bluetooth cannot pair classic HID
+- macOS 12 or later, Apple silicon or Intel. AppKit (`NSStatusItem` and `NSMenu`, rebuilt when it
+  opens and on every change while open), since SwiftUI's `MenuBarExtra` and Observation need macOS
+  13 and 14. Swift 6 with main-actor default isolation. Open at Login uses `SMAppService` from
+  macOS 13 and a LaunchAgent (`~/Library/LaunchAgents/work.lau.poly.login.plist`) on macOS 12. IOBluetooth for pairing (Core Bluetooth cannot pair classic HID
   accessories), Core Bluetooth only for the permission and power state.
 - Forgetting uses IOBluetoothDevice's private `remove` selector, the same as blueutil and Magic
   Switch. Poly is not sandboxed and is not for the Mac App Store. Releases are signed with the

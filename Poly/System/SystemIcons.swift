@@ -50,7 +50,7 @@ enum SystemIcons {
     /// vendors → hex vendor ID → products → hex product ID → "display-icon", which is a device type
     /// (com.apple.studio-display) or an image path.
     private static func monitorIcon(vendorID: UInt32, productID: UInt32) -> NSImage? {
-        let table = URL(filePath: "/System/Library/Displays/Contents/Resources/Overrides/Icons.plist")
+        let table = URL(fileURLWithPath: "/System/Library/Displays/Contents/Resources/Overrides/Icons.plist")
         guard let plist = NSDictionary(contentsOf: table) as? [String: Any],
             let vendors = plist["vendors"] as? [String: Any],
             let vendor = vendors[String(vendorID, radix: 16)] as? [String: Any]

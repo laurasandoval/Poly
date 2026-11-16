@@ -15,7 +15,7 @@ enum RenamePrompt {
             field.frame = NSRect(x: 0, y: 0, width: 240, height: 22)
             alert.accessoryView = field
             alert.window.initialFirstResponder = field
-            NSApp.activate()
+            NSApp.activateForPrompt()
             guard alert.runModal() == .alertFirstButtonReturn, field.stringValue != current else { return }
             rename(field.stringValue)
         }

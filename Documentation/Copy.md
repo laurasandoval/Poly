@@ -41,7 +41,7 @@ monitor.
 
 | Where | Copy |
 |---|---|
-| Menu, nothing linked yet | Connect your Mac to an external display and accessories to get started. (one wide line; SwiftUI drops line breaks in menu items, to revisit) |
+| Menu, nothing linked yet | Connect your Mac to an external display and accessories to get started. (one wide line, to revisit; the AppKit menu could now break it with an attributed title) |
 | Menu, Bluetooth denied | Allow Poly to Use Bluetooth… |
 | Menu, Bluetooth off | Bluetooth Is Off |
 | Display row subtitle | Connected • 2 accessories / Connecting… • 2 accessories / Couldn’t Connect • 2 accessories / Not Connected / Connected (nothing linked yet) |

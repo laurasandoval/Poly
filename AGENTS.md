@@ -33,7 +33,7 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 
 | Path | Owns |
 |---|---|
-| `Poly/App/PolyApp.swift` | Entry point, `MenuBarExtra` |
+| `Poly/App/PolyApp.swift` | Entry point (AppKit) |
 | `Poly/Model/Switcher.swift` | All behavior: reconcile, claim, release, sleep, learning |
 | `Poly/Model/Monitor.swift` | Saved monitors and accessories, status |
 | `Poly/System/Bluetooth.swift` | IOBluetooth: take, forget, recognizing accessories |
@@ -43,7 +43,8 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 | `Poly/System/Notifier.swift`, `LoginItem.swift` | Notifications, open at login |
 | `Poly/System/Log.swift` | Unified log categories and the command to read them |
 | `Poly/System/Updater.swift` | Silent Sparkle updates; keys in `Poly-Info.plist` |
-| `Poly/Views/MenuContent.swift` | The menu; renders and forwards intents only |
+| `Poly/Views/StatusMenu.swift` | The menu bar icon and menu; renders and forwards intents only |
+| `Poly/System/Compatibility.swift` | Stand-ins for APIs newer than macOS 12 |
 | `Poly/AppIcon.icon` | Icon Composer app icon (SVG layers) |
 
 The project uses folder-synchronized groups: new files under `Poly/` need no project edits.

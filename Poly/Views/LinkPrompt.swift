@@ -6,7 +6,7 @@ import AppKit
 enum LinkPrompt {
     static func ask(_ offer: LinkOffer) async -> Set<String> {
         // Let a menu or a just-finished connection settle before taking focus.
-        try? await Task.sleep(for: .milliseconds(100))
+        await pause(0.1)
         let alert = NSAlert()
         var boxes: [(address: String, box: NSButton)] = []
         if offer.accessories.count == 1, let accessory = offer.accessories.first {
@@ -34,7 +34,7 @@ enum LinkPrompt {
         }
         alert.addButton(withTitle: String(localized: "Link"))
         alert.addButton(withTitle: String(localized: "Don’t Link")).keyEquivalent = "\u{1b}"
-        NSApp.activate()
+        NSApp.activateForPrompt()
         guard alert.runModal() == .alertFirstButtonReturn else { return [] }
         if boxes.isEmpty { return Set(offer.accessories.map(\.address)) }
         return Set(boxes.filter { $0.box.state == .on }.map(\.address))

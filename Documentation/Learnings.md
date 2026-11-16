@@ -3,6 +3,16 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-15: macOS 12 support
+
+The owner's girlfriend's Mac runs macOS 12.7.6. What stood in the way, from a build at a macOS
+12 deployment target: SwiftUI's `MenuBarExtra` (13), Observation (14), `SMAppService` (13),
+`Task.sleep(for:)` and `Duration` (13), `NSApp.activate()` (14), `URL(filePath:)` (13). The menu
+is now AppKit, state changes reach it through one `onChange` callback, and Open at Login on 12 is
+a LaunchAgent (no API lets an app add itself there without a helper app). `NSMenuItem.subtitle`
+needs 14.4, so older systems get a two-line attributed title. Built and notarized on macOS 27;
+**not yet run on macOS 12** itself.
+
 ## 2026-11-15: silent updates
 
 **Tested locally:** a 9.0.0 build (development signing, throwaway Ed25519 key, feed on

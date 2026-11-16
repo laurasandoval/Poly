@@ -1,6 +1,5 @@
 import AppKit
 import CoreBluetooth
-import Observation
 import os
 
 /// Poly's whole behavior: a monitor's accessories follow the Mac plugged into it.
@@ -14,56 +13,74 @@ import os
 ///
 /// Every trigger runs `reconcile()`, which compares what is plugged in with what this Mac holds, so
 /// a missed event is repaired by the next one. Everything runs on the main actor.
-@Observable
 final class Switcher {
     enum BluetoothState { case waiting, ready, off, denied }
 
+    /// Called whenever anything the menu shows changes. Set by the app.
+    var onChange: (() -> Void)?
+
     private(set) var monitors: [Monitor] = [] {
-        didSet { save() }
+        didSet {
+            save()
+            onChange?()
+        }
     }
-    private(set) var attachedMonitors: [AttachedMonitor] = []
-    private(set) var bluetoothState: BluetoothState = .waiting
+    private(set) var attachedMonitors: [AttachedMonitor] = [] {
+        didSet { onChange?() }
+    }
+    private(set) var bluetoothState: BluetoothState = .waiting {
+        didSet { onChange?() }
+    }
     /// Accessory addresses connected to this Mac, refreshed on every Bluetooth connection change.
-    private(set) var connected: Set<String> = []
+    private(set) var connected: Set<String> = [] {
+        didSet { onChange?() }
+    }
     /// Accessories Poly has been trying to reach for a while.
-    private(set) var needsNudge: Set<String> = []
+    private(set) var needsNudge: Set<String> = [] {
+        didSet { onChange?() }
+    }
     /// The person's names for monitors, kept in Poly and iCloud since macOS cannot rename displays.
     let monitorNames = MonitorNames()
     /// Connected Apple accessories the one plugged-in monitor could have linked: not linked to it,
     /// and not about to be released by another monitor. The menu offers to link them.
-    private(set) var linkable: [AccessoryInfo] = []
+    private(set) var linkable: [AccessoryInfo] = [] {
+        didSet { onChange?() }
+    }
     /// Accessories the person chose not to link, by monitor. Poly does not ask about them again.
     private(set) var declined: [String: Set<String>] = [:] {
-        didSet { UserDefaults.standard.set(declined.mapValues { $0.sorted() }, forKey: Self.declinedKey) }
+        didSet {
+            UserDefaults.standard.set(declined.mapValues { $0.sorted() }, forKey: Self.declinedKey)
+            onChange?()
+        }
     }
     /// Shows the Link alert and returns the addresses the person chose to link. Set by the app.
-    @ObservationIgnored var askToLink: ((LinkOffer) async -> Set<String>)?
+    var askToLink: ((LinkOffer) async -> Set<String>)?
 
-    @ObservationIgnored private let bluetooth = Bluetooth()
-    @ObservationIgnored private let access = BluetoothAccess()
-    @ObservationIgnored private let power = PowerEvents()
-    @ObservationIgnored private let wakefulness = Wakefulness()
+    private let bluetooth = Bluetooth()
+    private let access = BluetoothAccess()
+    private let power = PowerEvents()
+    private let wakefulness = Wakefulness()
     /// One running claim per plugged-in monitor. The token lets a cancelled claim that finishes late
     /// tell that a newer claim has replaced it.
-    @ObservationIgnored private var claims: [String: (token: UUID, task: Task<Void, Never>)] = [:]
-    @ObservationIgnored private var releases: [String: Task<Void, Never>] = [:]
+    private var claims: [String: (token: UUID, task: Task<Void, Never>)] = [:]
+    private var releases: [String: Task<Void, Never>] = [:]
     /// When each unplugged monitor whose accessories this Mac still holds went missing.
-    @ObservationIgnored private var missingSince: [String: Date] = [:]
+    private var missingSince: [String: Date] = [:]
     /// Displays take a few seconds to come back after login or wake; nothing is released before this.
-    @ObservationIgnored private var holdReleasesUntil = Date.now.addingTimeInterval(15)
+    private var holdReleasesUntil = Date.now.addingTimeInterval(15)
     /// Right after a wake the display list can still show the monitor from before the sleep; no
     /// claims until it has had a moment to catch up, or Poly could pair accessories another Mac uses.
-    @ObservationIgnored private var holdClaimsUntil = Date.distantPast
-    @ObservationIgnored private var reconcileSoonPending = false
-    @ObservationIgnored private var sleeping = false
+    private var holdClaimsUntil = Date.distantPast
+    private var reconcileSoonPending = false
+    private var sleeping = false
     /// Accessories already asked about while they stay connected; cleared when they disconnect.
-    @ObservationIgnored private var asked: Set<String> = []
+    private var asked: Set<String> = []
     /// Accessories that just connected, gathered for a moment so ones connected together share one alert.
-    @ObservationIgnored private var gathering: (monitor: AttachedMonitor, accessories: [AccessoryInfo])?
-    @ObservationIgnored private var gatheringTask: Task<Void, Never>?
-    @ObservationIgnored private var offers: [(monitor: AttachedMonitor, accessories: [AccessoryInfo])] = []
-    @ObservationIgnored private var presentingOffer = false
-    @ObservationIgnored private var lastDisplayChange = Date.distantPast
+    private var gathering: (monitor: AttachedMonitor, accessories: [AccessoryInfo])?
+    private var gatheringTask: Task<Void, Never>?
+    private var offers: [(monitor: AttachedMonitor, accessories: [AccessoryInfo])] = []
+    private var presentingOffer = false
+    private var lastDisplayChange = Date.distantPast
 
     private static let storageKey = "monitors"
     private static let declinedKey = "declined"
@@ -80,6 +97,7 @@ final class Switcher {
     }
 
     func start() {
+        monitorNames.onChange = { [weak self] in self?.onChange?() }
         Notifier.requestPermission()
         access.onChange = { [weak self] in self?.bluetoothAccessChanged() }
         access.start()
@@ -244,7 +262,7 @@ final class Switcher {
         guard !reconcileSoonPending else { return }
         reconcileSoonPending = true
         Task {
-            try? await Task.sleep(for: .milliseconds(300))
+            await pause(0.3)
             reconcileSoonPending = false
             reconcile()
         }
@@ -252,7 +270,7 @@ final class Switcher {
 
     private func reconcile(after seconds: Double) {
         Task {
-            try? await Task.sleep(for: .seconds(seconds))
+            await pause(seconds)
             reconcile()
         }
     }
@@ -385,7 +403,7 @@ final class Switcher {
                 for task in tasks { task.cancel() }
             }
             let elapsed = Date.now.timeIntervalSince(started)
-            try? await Task.sleep(for: .seconds(elapsed < 120 ? 1 : elapsed < 600 ? 5 : 20))
+            await pause(elapsed < 120 ? 1 : elapsed < 600 ? 5 : 20)
         }
     }
 
@@ -410,7 +428,7 @@ final class Switcher {
             // The display list cannot be trusted here: it still lists a monitor unplugged a second
             // ago (Documentation/Learnings.md). With the lid open, it is all there is.
             let lidClosed = Lid.isClosed
-            if !lidClosed { try? await Task.sleep(for: .seconds(1)) }
+            if !lidClosed { await pause(1) }
             let listed = Set(Displays.attached().map(\.id))
             let attachedIDs: Set<String> = lidClosed ? [] : listed
             Log.switcher.info(
@@ -423,7 +441,7 @@ final class Switcher {
             }
         }
         let deadline = Task {
-            try? await Task.sleep(for: .seconds(20))
+            await pause(20)
             work.cancel()
         }
         await work.value
@@ -480,7 +498,7 @@ final class Switcher {
         gathering?.accessories.append(contentsOf: new)
         gatheringTask?.cancel()
         gatheringTask = Task {
-            try? await Task.sleep(for: .seconds(1))
+            await pause(1)
             guard !Task.isCancelled, let batch = gathering else { return }
             gathering = nil
             offers.append(batch)
@@ -605,7 +623,7 @@ private final class Gate {
     func wait(upTo seconds: Double) async {
         guard !isOpen else { return }
         Task {
-            try? await Task.sleep(for: .seconds(seconds))
+            await pause(seconds)
             open()
         }
         await withCheckedContinuation { waiters.append($0) }

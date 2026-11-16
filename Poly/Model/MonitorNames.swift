@@ -1,15 +1,16 @@
 import Foundation
-import Observation
 
 /// Names the person gave their monitors. macOS cannot rename a display, so the names live in Poly:
 /// in this Mac's UserDefaults, mirrored to iCloud key-value storage so the person's other Macs use
 /// them too. Without iCloud they simply stay on this Mac. Each person names monitors their own way:
 /// a shared monitor can be "Office" on one person's Macs and "Work" on another's.
-@Observable
 final class MonitorNames {
-    private(set) var names: [String: String] = [:]
+    private(set) var names: [String: String] = [:] {
+        didSet { onChange?() }
+    }
+    var onChange: (() -> Void)?
 
-    @ObservationIgnored private let cloud = NSUbiquitousKeyValueStore.default
+    private let cloud = NSUbiquitousKeyValueStore.default
     private static let storageKey = "monitorNames"
     /// One iCloud key per monitor, so renaming two monitors on two Macs never collides.
     private static let cloudPrefix = "monitor-name."
