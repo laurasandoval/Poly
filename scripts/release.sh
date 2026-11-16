@@ -7,7 +7,7 @@
 #   2. exports it signed with Developer ID (with its iCloud provisioning profile),
 #   3. notarizes and staples the app, then packs, signs, notarizes and staples Poly.dmg,
 #   4. signs Poly.dmg for Sparkle and writes appcast.xml,
-#   5. publishes both to a GitHub release in the public releases repository.
+#   5. tags the commit and publishes both to a GitHub release of this (public) repository.
 #
 # For testing without publishing (see Documentation/Releasing.md):
 #   METHOD=debugging NOTARIZE=0 PUBLISH=0 FEED_URL=http://127.0.0.1:8765/appcast.xml \
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 version=${1:?usage: scripts/release.sh <version, e.g. 1.1>}
-releases_repo=${RELEASES_REPO:-laurasandoval/poly-releases}
+releases_repo=${RELEASES_REPO:-laurasandoval/Poly}
 feed_url=${FEED_URL:-https://github.com/$releases_repo/releases/latest/download/appcast.xml}
 download_url=${DOWNLOAD_URL:-https://github.com/$releases_repo/releases/download/v$version/Poly.dmg}
 notary_profile=${NOTARY_PROFILE:-poly-notary}
@@ -109,9 +109,9 @@ EOF
 
 if [[ $publish == 1 ]]; then
     echo "Publishing v$version to $releases_repo…"
-    gh release create "v$version" "$out/Poly.dmg" "$out/appcast.xml" \
-        --repo "$releases_repo" --title "Poly $version" --notes "${NOTES:-Poly $version}"
     git tag "v$version" && git push origin "v$version"
+    gh release create "v$version" "$out/Poly.dmg" "$out/appcast.xml" --verify-tag \
+        --repo "$releases_repo" --title "Poly $version" --notes "${NOTES:-Poly $version}"
     echo "Released: https://github.com/$releases_repo/releases/latest/download/Poly.dmg"
 else
     echo "Built $root/$out (not published)."

@@ -209,7 +209,7 @@ does not answer. Everything uses the person's names for monitors and accessories
   accessories), Core Bluetooth only for the permission and power state.
 - Forgetting uses IOBluetoothDevice's private `remove` selector, the same as blueutil and Magic
   Switch. Poly is not sandboxed and is not for the Mac App Store. Releases are signed with the
-  team's Developer ID, notarized, and published as a DMG from a public releases repository
+  team's Developer ID, notarized, and published as a DMG in this repository's GitHub releases
   ([Releasing](Releasing.md)); development builds use the Apple Development certificate. Both run
   with the hardened runtime.
 - **Updates are silent.** Sparkle checks every 6 hours, downloads in the background, and Poly

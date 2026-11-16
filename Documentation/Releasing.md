@@ -2,13 +2,13 @@
 
 Poly is distributed outside the Mac App Store (it uses private IOBluetooth calls), signed with the
 team's Developer ID, notarized, and updated silently by [Sparkle](https://sparkle-project.org).
-The source repository stays private; releases live in a separate **public** repository that holds
-only the downloads and the update feed.
+Releases are GitHub releases of this public repository; each one holds `Poly.dmg` and the update
+feed, `appcast.xml`.
 
 | What | Where |
 |---|---|
-| Download link to share | `https://github.com/laurasandoval/poly-releases/releases/latest/download/Poly.dmg` |
-| Update feed (built into the app) | `https://github.com/laurasandoval/poly-releases/releases/latest/download/appcast.xml` |
+| Download link to share | `https://github.com/laurasandoval/Poly/releases/latest/download/Poly.dmg` |
+| Update feed (built into the app) | `https://github.com/laurasandoval/Poly/releases/latest/download/appcast.xml` |
 | Release script | `scripts/release.sh <version>` |
 | Updater | `Poly/System/Updater.swift`, Sparkle keys in `Poly-Info.plist` |
 
@@ -54,15 +54,8 @@ All of these are the account holder's to do; none are in the repository.
    **Back it up** (`generate_keys -x poly-sparkle-key.txt`, then store the file in a password
    manager and delete it). Every installed copy trusts only this key: losing it means no Mac can
    update again without reinstalling by hand.
-4. **Public releases repository.** Create `laurasandoval/poly-releases` as a public repository
-   with only a README (suggested text below). The app's source never goes there.
-5. `gh auth status` should show you signed in with access to that repository.
-
-Suggested README for the releases repository:
-
-> **Poly** makes your Apple keyboard, mouse, and trackpad follow your Mac from display to display.
-> [Download Poly](https://github.com/laurasandoval/poly-releases/releases/latest/download/Poly.dmg),
-> open it and drag Poly to Applications. Poly keeps itself up to date.
+4. **Public repository.** `laurasandoval/Poly` is public, and `gh auth status` shows you signed
+   in.
 
 ## Each release
 
@@ -73,8 +66,7 @@ scripts/release.sh 1.1
 From a clean, committed tree. The build number is the commit count, so it always increases. The
 script archives, exports with Developer ID (Xcode creates the Developer ID provisioning profile
 with the iCloud key-value capability), notarizes and staples the app and the DMG, writes
-`appcast.xml`, publishes both to a `v1.1` release in the releases repository, and tags the
-source. `NOTES="…"` sets the release notes on GitHub; installed copies never show them.
+`appcast.xml`, tags the commit `v1.1` and publishes both to the `v1.1` release. `NOTES="…"` sets the release notes on GitHub; installed copies never show them.
 
 Release outputs stay in `build/release/<version>/` (ignored by Git), including the archive with
 its symbols for crash reports.
