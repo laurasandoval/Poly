@@ -54,7 +54,8 @@ final class Bluetooth: NSObject {
         guard connectNotification == nil else { return }
         connectNotification = IOBluetoothDevice.register(
             forConnectNotifications: self, selector: #selector(deviceDidConnect(_:device:)))
-        cables.onChange = { [weak self] in self?.onConnectionsChanged?() }
+        cables.onChange = { [weak self] in self?.cablesChanged() }
+        onCable = cabledAddresses()
         cables.start()
     }
 
@@ -67,6 +68,21 @@ final class Bluetooth: NSObject {
 
     /// Accessories on a cable: by the address macOS publishes for them or, for an Apple USB device
     /// without one, the single paired Apple accessory with the same product ID.
+    /// Accessories on a cable at the last cable change, and when others left one.
+    private var onCable: Set<String> = []
+    private var leftCable: [String: Date] = [:]
+
+    private func cablesChanged() {
+        let now = cabledAddresses()
+        for address in onCable.subtracting(now) {
+            leftCable[address] = .now
+            Log.bluetooth.info("\(address, privacy: .public) left its cable")
+        }
+        for address in now.subtracting(onCable) { Log.bluetooth.info("\(address, privacy: .public) is on a cable") }
+        onCable = now
+        onConnectionsChanged?()
+    }
+
     private func cabledAddresses() -> Set<String> {
         let published = Cables.accessories()
         var result = Set(published.keys)
@@ -133,6 +149,13 @@ final class Bluetooth: NSObject {
             let answer = await remoteNameRequest(device)
             Log.bluetooth.info("\(address, privacy: .public) answer check: \(Log.hex(answer), privacy: .public)")
             guard answer == kIOReturnSuccess else { return .unreachable }
+            // Just off a cable, an accessory reconnects over Bluetooth by itself with the bond macOS
+            // made through the cable; that bond is not stale. Let it, and look again later.
+            if let off = leftCable[address], Date.now.timeIntervalSince(off) < 10 {
+                Log.bluetooth.info("\(address, privacy: .public) just left a cable; not re-pairing")
+                return .unreachable
+            }
+            if device.isConnected() || isCabled(address) { return .connected }
             await forget(address)
             await pause(0.5)  // re-pairing inside the unbond window fails
             guard let fresh = self.device(address) else { return .failed }
