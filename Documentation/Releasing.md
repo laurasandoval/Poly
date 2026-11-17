@@ -96,6 +96,15 @@ and reopen the installed Poly.
 
 ## Caveats
 
+- **Releasing from another Mac** (0.5 was released from the Mac mini): it needs the Sparkle private
+  key imported (`generate_keys -f <exported file>`; check `generate_keys -p` matches the
+  `SUPublicEDKey` of the last release), the `poly-notary` profile, and a Developer ID Application
+  identity of its own (Xcode → Manage Certificates → +). A `.cer` from another Mac has no private
+  key; Xcode's cloud signing still exports the app, but signing `Poly.dmg` needs a local identity.
+- **A build that hangs at "Resolve Package Graph"** with `artifacts/` empty is waiting on a
+  keychain prompt for package credentials, possibly off screen. Add
+  `-packageAuthorizationProvider netrc` to that `xcodebuild` (as `scripts/diagnostics.sh` does).
+
 - Moving a Mac from a development build to the first Developer ID release changes Poly's
   signature, so macOS may ask for Bluetooth permission once more.
 - A release cannot be pulled back from Macs that already updated; fix forward with a new version.
