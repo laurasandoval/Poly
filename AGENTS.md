@@ -42,7 +42,8 @@ closed MacBook sleeps. Each Mac learns its own monitors; Macs never talk to each
 | `Poly/System/PowerEvents.swift` | Sleep and wake from IOKit power management |
 | `Poly/System/SystemIcons.swift` | System artwork for monitors and accessories |
 | `Poly/System/Notifier.swift`, `LoginItem.swift` | Notifications, open at login |
-| `Poly/System/Log.swift` | Unified log categories and the command to read them |
+| `Poly/System/Log.swift` | Log categories; each line goes to the unified log and the journal |
+| `Poly/System/Journal.swift` | `~/Library/Logs/Poly/Poly.log`, mirrored to iCloud; `--export-diagnostics` |
 | `Poly/System/Updater.swift` | Silent Sparkle updates; keys in `Poly-Info.plist` |
 | `Poly/Views/StatusMenu.swift` | The menu bar icon and menu; renders and forwards intents only |
 | `Poly/System/Compatibility.swift` | Stand-ins for APIs newer than macOS 12 |
@@ -60,7 +61,8 @@ xcodebuild -project Poly.xcodeproj -scheme Poly -derivedDataPath build/DerivedDa
 
 `scripts/install.sh` builds Release, installs in /Applications and opens it (such builds never
 update themselves). `scripts/release.sh <version>` makes and publishes a release; see
-[Releasing](Documentation/Releasing.md). Launch the app through
+[Releasing](Documentation/Releasing.md). `scripts/diagnostics.sh` collects every one of the owner's
+Macs' journals (through iCloud) into a folder: start there when a problem happened on another Mac. Launch the app through
 LaunchServices (`open`), not its executable: run from a shell, the shell is responsible for the
 Bluetooth permission and TCC kills the process. Do not grant permissions or pair, unpair or
 connect the owner's accessories without asking; behavior changes are verified with the spec's

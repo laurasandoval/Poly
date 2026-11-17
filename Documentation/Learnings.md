@@ -3,6 +3,36 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-17: a work display offered as "Home Office"; renames that took two tries
+
+**Symptoms** (0.4, a MacBook used at home with a Studio Display named "Home Office", plugged into
+an unnamed Studio Display at work for the first time): the Link question asked to link the work
+keyboard to "Home Office" instead of "Studio Display". Renaming the work keyboard and mouse failed
+the first time for both, and worked on a second try. No log was captured; the unified log's info
+lines had aged out, which is why Poly now keeps its own journal (below).
+
+**Causes, from the code** (not confirmed by a log):
+- A closed MacBook that knows exactly one monitor guesses it is plugged into that one, before
+  macOS lists the real display (`inferredMonitors`, for the early claim). Link offers used that
+  guess: the work accessories, still paired to this Mac, reconnected on wake and were offered for
+  the guessed "Home Office". The guess was also made when the display controller already reported
+  a different monitor. A second path, with the lid open: right after a wake the display list can
+  still show the monitor from before the sleep, and offers were not held then either.
+- `rename:` returns before bluetoothd reports the new name; Poly read `device.name` at once, got
+  the old name and saved it back, so the menu showed the old name. By the second try the first
+  rename had landed.
+
+**Changes.** Nothing is offered or linked while the monitor is a guess or during the 1.5 s
+post-wake hold (`linkTarget`); an answer given while the display changed is dropped and the
+accessories are asked about again for the display that is there. No guess when the controller
+reports another monitor. Renaming shows the new name at once and waits up to 5 s for Bluetooth to
+report it ("renamed to …, reports … after … s"). The menu lists connected displays first.
+
+**Diagnosing from another Mac.** Every log line now also goes to `~/Library/Logs/Poly/Poly.log`,
+and its compressed end to the person's iCloud key-value storage (`diagnostics.<random id>`, 48 KB
+per Mac). `scripts/diagnostics.sh` on any of the owner's Macs writes every Mac's copy to a folder.
+Log lines are now default level, so the unified log keeps them for days too.
+
 ## 2026-11-17: the "Connection Request" dialog, confirmed
 
 **Observed** on 0.3 at wake, the dialog for the Magic Mouse (`24:1B:7A:6E:CE:CA`). bluetoothd's

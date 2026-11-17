@@ -162,6 +162,11 @@ Bluetooth settings), or installs Poly while they are already connected, and link
   pending.
 - With several external monitors at once (a Sidecar iPad, AirPlay), nothing is offered; linked
   monitors still work.
+- Only a monitor macOS lists is offered: never the monitor a closed MacBook guesses before its
+  display is listed (see "Plugged into a closed MacBook"), and nothing during the 1.5 s after a
+  wake, when the list can still show the monitor from before the sleep. If the connected monitor
+  changes while the alert is open, the answer is dropped and the accessories are asked about again
+  for the monitor connected then.
 - Saved names follow accessories renamed elsewhere.
 - Each Mac learns on its own. The list lives in that Mac's UserDefaults (`monitors`, JSON).
 
@@ -181,7 +186,7 @@ All copy follows [the copy guide](Copy.md), which also lists every string.
 
 A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no windows, no settings.
 
-- One item per monitor, with its system icon (System Settings' own artwork: the Displays override
+- One item per monitor, connected ones first, with its system icon (System Settings' own artwork: the Displays override
   table, then Finder's device types) and a subtitle: "Connected • 2 accessories" while plugged in
   ("Connecting…" or "Couldn’t Connect" in place of "Connected" when that applies), "Not Connected"
   otherwise. Monitors with the same name are numbered
@@ -198,8 +203,9 @@ A menu bar icon (∞, a nod to the name) and a standard menu. Nothing else, no w
 - **Renaming** uses a standard alert with one text field. An accessory is renamed itself, like
   Bluetooth settings' Name field (IOBluetoothDevice's private `rename:`): at once when connected,
   otherwise the name waits (`pendingName`, shown in the menu meanwhile) and is given once, the
-  next time it connects. A connected accessory always shows the name Bluetooth reports, so a
-  rename that does not take simply does not show. macOS cannot rename a display, so a monitor's
+  next time it connects. The new name shows at once; Bluetooth reports it a moment later, and Poly
+  waits up to 5 s for that. After that a connected accessory shows the name Bluetooth reports, so
+  a rename that does not take simply does not show. macOS cannot rename a display, so a monitor's
   name lives in Poly (`monitorNames` in UserDefaults), mirrored to iCloud key-value storage under
   `monitor-name.<monitor id>` so the person's other Macs share it; without iCloud it stays on this
   Mac. Each person's Macs keep their own names for a shared monitor. An empty name goes back to
@@ -252,10 +258,22 @@ does not answer. Everything uses the person's names for monitors and accessories
 
 ## Diagnosing
 
-Every handoff step goes to the unified log (subsystem `work.lau.poly`): monitors attached, each
-take result with IOReturn codes, pairing, releases with whether the accessory is still paired, and
-sleep. See `Poly/System/Log.swift` for the command. Findings go in
-[Learnings](Learnings.md).
+Every handoff step is logged: monitors attached (and whether Poly only guessed), each take result
+with IOReturn codes, pairing, link questions, renames, releases with whether the accessory is
+still paired, and sleep. Each line goes to:
+
+- the unified log (subsystem `work.lau.poly`, default level, kept for days; the command is in
+  `Poly/System/Log.swift`);
+- Poly's journal, `~/Library/Logs/Poly/Poly.log` (2 MB, then `Poly.previous.log`), also in
+  Console under Log Reports;
+- the person's own iCloud key-value storage: a minute after Poly writes, the end of the journal,
+  compressed to at most 48 KB, under `diagnostics.<random id>` with the Mac's name, model, macOS
+  and Poly version. Copies not updated for 30 days are removed. Nothing goes anywhere but the
+  person's iCloud; a Mac without iCloud keeps only its file.
+
+`scripts/diagnostics.sh` on any Mac signed into the same iCloud account builds Poly and runs it
+with `--export-diagnostics <folder>`, which writes this Mac's journal and every other Mac's copy
+there and quits without touching Bluetooth or displays. Findings go in [Learnings](Learnings.md).
 
 ## Manual test plan
 
