@@ -64,7 +64,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             menu.addItem(label("Connect your Mac to an external display and accessories to get started."))
             menu.addItem(.separator())
         }
-        for monitor in monitors { menu.addItem(monitorItem(monitor, among: monitors)) }
+        // Connected displays first; numbering ("Studio Display 2") follows the saved order, so it
+        // does not change as displays connect and disconnect.
+        let connectedFirst = monitors.filter(switcher.isAttached) + monitors.filter { !switcher.isAttached($0) }
+        for monitor in connectedFirst { menu.addItem(monitorItem(monitor, among: monitors)) }
         if !monitors.isEmpty { menu.addItem(.separator()) }
 
         let login = action("Open at Login") { [loginItem] in loginItem.setEnabled(!loginItem.isEnabled) }
