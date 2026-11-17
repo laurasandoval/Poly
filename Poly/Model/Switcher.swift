@@ -71,6 +71,12 @@ final class Switcher {
     /// Right after a wake the display list can still show the monitor from before the sleep; no
     /// claims until it has had a moment to catch up, or Poly could pair accessories another Mac uses.
     private var holdClaimsUntil = Date.distantPast
+    /// The attached monitors are Poly's guess for a closed MacBook whose display macOS does not list
+    /// yet (`inferredMonitors`), good enough to start connecting but not to link anything to.
+    private var attachedAreInferred = false
+    /// Accessories being renamed: Bluetooth reports the new name a moment later, and until then the
+    /// menu shows the name asked for.
+    private var renaming: Set<String> = []
     private var reconcileSoonPending = false
     private var sleeping = false
     /// Accessories already asked about while they stay connected; cleared when they disconnect.
@@ -174,8 +180,14 @@ final class Switcher {
             && offers.isEmpty && Date.now.timeIntervalSince(lastDisplayChange) > 30
     }
 
-    /// The monitor accessories can be linked to: the only one plugged in.
-    var linkTarget: AttachedMonitor? { attachedMonitors.count == 1 ? attachedMonitors.first : nil }
+    /// The monitor accessories can be linked to: the only one plugged in, as macOS lists it. Never a
+    /// monitor Poly only guessed for a closed MacBook, and not right after a wake, while the list can
+    /// still show the monitor from before the sleep: either would offer to link accessories to a
+    /// monitor somewhere else (Learnings, 2026-11-17).
+    var linkTarget: AttachedMonitor? {
+        guard !attachedAreInferred, holdClaimsUntil <= .now, attachedMonitors.count == 1 else { return nil }
+        return attachedMonitors.first
+    }
 
     /// Stops managing an accessory, as if the person had answered Don't Link. It stays paired and
     /// connected; the menu offers to link it again while it is connected. A monitor left with no
@@ -244,13 +256,15 @@ final class Switcher {
 
     /// The monitor a closed MacBook was just plugged into, before macOS lists it (about 1.6 s after
     /// the wake): the known monitor the display controller already reports, or, when this Mac knows
-    /// only one monitor, that one. With several known and none reported, nothing is guessed: taking
-    /// another monitor's accessories would take them from whoever is using them.
+    /// only one monitor and the controller reports none yet, that one. With several known and none
+    /// reported, or a different monitor reported, nothing is guessed: taking another monitor's
+    /// accessories would take them from whoever is using them. A guess is only ever used to connect;
+    /// nothing is linked to it (`linkTarget`).
     private func inferredMonitors() -> [AttachedMonitor] {
         var matches = Displays.registryMatches(monitors)
-        if matches.isEmpty, monitors.count == 1 { matches = monitors }
+        if matches.isEmpty, monitors.count == 1, !Displays.registryReportsAny() { matches = monitors }
         Log.switcher.info(
-            "closed on a monitor not listed yet; registry: \(Displays.registrySummary(), privacy: .public), inferred: \(matches.map(\.name).joined(separator: ", "), privacy: .public)"
+            "closed on a monitor not listed yet; registry: \(Displays.registrySummary()), inferred: \(matches.map(\.name).joined(separator: ", "))"
         )
         return matches.map {
             AttachedMonitor(id: $0.id, name: $0.name, vendorID: $0.vendorID, productID: $0.productID)
@@ -282,11 +296,13 @@ final class Switcher {
         var attached = Displays.attached()
         let closedOnMonitor = isClosedOnMonitor
         // Only while macOS lists no real display yet: once it lists one, that list is the truth.
-        if closedOnMonitor, attached.isEmpty { attached = inferredMonitors() }
+        let inferred = closedOnMonitor && attached.isEmpty
+        if inferred { attached = inferredMonitors() }
         let newlyAttached = Set(attached.map(\.id)).subtracting(attachedMonitors.map(\.id))
-        if attached != attachedMonitors {
+        if attached != attachedMonitors || (inferred && !attached.isEmpty) != attachedAreInferred {
             let names = attached.map { "\($0.name) [\($0.id)]" }.joined(separator: ", ")
-            Log.switcher.info("monitors attached: \(names.isEmpty ? "none" : names, privacy: .public)")
+            Log.switcher.info("monitors attached: \(names.isEmpty ? "none" : names)\(inferred && !attached.isEmpty ? " (guessed)" : "")")
+            attachedAreInferred = inferred && !attached.isEmpty
             attachedMonitors = attached
         }
         refreshConnected()
@@ -514,11 +530,23 @@ final class Switcher {
             let (monitor, accessories) = offers.removeFirst()
             // Something may have changed while it waited: unplugged, disconnected, linked from the menu.
             let still = accessories.filter { info in linkable.contains { $0.address == info.address } }
-            guard linkTarget?.id == monitor.id, !still.isEmpty else { continue }
+            guard !still.isEmpty else { continue }
+            guard linkTarget?.id == monitor.id else {
+                reask(still)
+                continue
+            }
             let offer = LinkOffer(
                 monitorName: monitorNames[monitor.id] ?? monitor.name,
                 accessories: still.map { Accessory($0, name: name(of: $0)) })
+            Log.switcher.info(
+                "asking to link \(still.map(\.name).joined(separator: ", ")) to \(offer.monitorName) [\(monitor.id)]")
             let chosen = await askToLink(offer)
+            // The display can change while the question is open; the answer was about the one it named.
+            guard linkTarget?.id == monitor.id else {
+                Log.switcher.info("\(offer.monitorName) is no longer connected; not using the answer")
+                reask(still)
+                continue
+            }
             for info in still {
                 if chosen.contains(info.address) {
                     link(info, to: monitor)
@@ -529,6 +557,13 @@ final class Switcher {
             }
             reconcile()
         }
+    }
+
+    /// Lets accessories gathered for a display that is gone be asked about again, for whichever
+    /// display is connected once things settle.
+    private func reask(_ accessories: [AccessoryInfo]) {
+        asked.subtract(accessories.map(\.address))
+        reconcile(after: 0.5)
     }
 
     /// The name to show for an accessory that may not be linked yet.

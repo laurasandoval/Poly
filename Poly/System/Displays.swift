@@ -69,6 +69,9 @@ enum Displays {
         return known.filter { candidates.contains($0.id) }
     }
 
+    /// Whether the display controller reports any external panel yet.
+    static func registryReportsAny() -> Bool { !registryPanels().isEmpty }
+
     /// For the log: what the display controller reports right now.
     static func registrySummary() -> String {
         let panels = registryPanels().map { String(format: "%x-%x-", $0.vendorID, $0.productID) + ($0.serial ?? "?") }
