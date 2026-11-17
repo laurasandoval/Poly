@@ -201,17 +201,24 @@ final class Bluetooth: NSObject {
     }
 
     /// Renames an accessory the way Bluetooth settings' Name field does, through IOBluetoothDevice's
-    /// private `rename:`. Returns the name Bluetooth reports afterwards.
+    /// private `rename:`. Returns the name Bluetooth reports afterwards. bluetoothd takes a moment to
+    /// report the new name, and reading it at once can return the old one, which made a first rename
+    /// look like it had failed (Learnings, 2026-11-17); this waits up to 5 s for the new name to show.
     func rename(_ address: String, to name: String) async -> String? {
         guard let device = device(address) else { return nil }
         let box = UncheckedBox(device)
+        let started = Date.now
         await onQueue {
             let rename = Selector(("rename:"))
             if box.value.responds(to: rename) { _ = box.value.perform(rename, with: name) }
         }
-        let reported = device.name
-        Log.bluetooth.info(
-            "\(address, privacy: .public) renamed to \(name, privacy: .public), reports \(reported ?? "nothing", privacy: .public)")
+        var reported = self.device(address)?.name
+        while reported != name, Date.now.timeIntervalSince(started) < 5 {
+            await pause(0.25)
+            reported = self.device(address)?.name
+        }
+        let elapsed = String(format: "%.2f", Date.now.timeIntervalSince(started))
+        Log.bluetooth.info("\(address) renamed to \(name), reports \(reported ?? "nothing") after \(elapsed) s")
         return reported
     }
 

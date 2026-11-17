@@ -597,7 +597,7 @@ final class Switcher {
 
     /// Keeps an accessory's name current when it is renamed in Bluetooth settings.
     private func updateName(_ info: AccessoryInfo) {
-        guard !info.name.isEmpty else { return }
+        guard !info.name.isEmpty, !renaming.contains(info.address) else { return }
         updateAccessory(info.address) { $0.name = info.name }
     }
 
@@ -606,9 +606,16 @@ final class Switcher {
     private func applyPendingName(_ address: String) {
         guard let name = monitors.lazy.flatMap(\.accessories).first(where: { $0.address == address })?.pendingName
         else { return }
-        updateAccessory(address) { $0.pendingName = nil }
+        // Shown at once; Bluetooth reports the new name a moment later (Learnings, 2026-11-17).
+        renaming.insert(address)
+        updateAccessory(address) {
+            $0.pendingName = nil
+            $0.name = name
+        }
         Task {
-            guard let reported = await bluetooth.rename(address, to: name), !reported.isEmpty else { return }
+            let reported = await bluetooth.rename(address, to: name)
+            renaming.remove(address)
+            guard let reported, !reported.isEmpty else { return }
             updateAccessory(address) { $0.name = reported }
         }
     }
