@@ -3,6 +3,20 @@
 What building and testing Poly taught us, newest first. Add to it whenever something surprises
 you: the symptom, the cause, how it was confirmed, and what the code does about it.
 
+## 2026-11-17: the "Connection Request" dialog, confirmed
+
+**Observed** on 0.3 at wake, the dialog for the Magic Mouse (`24:1B:7A:6E:CE:CA`). bluetoothd's
+log (`process == "bluetoothd"`, default level, kept for days unlike Poly's info lines) shows it:
+Poly registered a pairing agent for the keyboard (session …-1425) and, 0.3 s later, one for the
+mouse (…-1426). When the keyboard's pairing completed, bluetoothd logged `Unregistering pairing
+agent` for **both** sessions. The mouse's link came up 2 s later; its confirmation request found
+no Poly agent (`work.lau.poly did request pairing: 0`), so `AppManager::pairingRequested` handed
+it to BluetoothUIServer, which showed the dialog. bluetoothd also queues the connections: the
+mouse's link only came up after the keyboard's pairing, so the overlap gained nothing there.
+
+**Change.** `Bluetooth.pair` runs one pairing at a time; the next accessory still pages (its
+answer check) while the previous one pairs. This settles the 2026-11-15 entry below.
+
 ## 2026-11-15: accessories on a cable
 
 **Symptom** (0.2 on macOS 12, the girlfriend's Mac): a Magic Keyboard used on its cable stayed

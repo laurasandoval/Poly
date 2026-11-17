@@ -56,7 +56,9 @@ Bluetooth with the bond macOS made through the cable.
 For each accessory of the attached monitor that is not connected, keyboard first, then mouse,
 then trackpad, overlapped: each starts once the previous one's pairing is under way
 (`devicePairingConnected:`, 0.3 s after its pairing started, or it ended; at most 3 s), so the mouse
-pairs while the keyboard finishes. A controller pages one device at a time, so they never start at the same instant.
+is found while the keyboard finishes. Pairing itself is one at a time: when a pairing ends macOS
+drops all of Poly's pairing agents, and an overlapping one would fall to macOS's own
+"Connection Request" alert.
 
 1. Bonded on this Mac → open a connection (5 s page timeout). Connected → done.
 2. Otherwise, check the accessory answers (remote name request, 2.5 s page timeout). No answer →
@@ -242,8 +244,6 @@ does not answer. Everything uses the person's names for monitors and accessories
 
 - An accessory left unpaired for a long time stops listening and needs a click, a key press, or
   switching off and on. The nudge covers this.
-- macOS may show its own "Connection Request" alert after a switch (seen once, for the mouse, since
-  pairings overlap); Poly cannot suppress it, and the accessory works without answering it.
 - A Mac without Poly does not release accessories; unplug and let a Poly Mac take over, or forget
   them in that Mac's Bluetooth settings.
 - Two identical monitors whose serials macOS cannot read are indistinguishable.

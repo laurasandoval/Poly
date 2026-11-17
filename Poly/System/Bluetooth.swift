@@ -40,6 +40,7 @@ final class Bluetooth: NSObject {
     private let queue = DispatchQueue(label: "work.lau.poly.bluetooth")
     /// Pairings in progress, kept alive until they finish.
     private var pending: Set<NSObject> = []
+    private var lastPairing: Task<Bool, Never>?
     /// Takes and forgets in progress. An update waits for none (`Updater`).
     private(set) var operations = 0
 
@@ -250,8 +251,25 @@ final class Bluetooth: NSObject {
         }
     }
 
-    /// Pairs, stopping early if the task is cancelled (the monitor was unplugged meanwhile).
+    /// Pairs one accessory at a time. When one pairing finishes, bluetoothd unregisters every
+    /// pairing agent Poly has, so an overlapping pairing loses its agent and macOS asks the person
+    /// instead ("Connection Request from: …"; Learnings, 2026-11-17).
     private func pair(
+        _ device: IOBluetoothDevice, onConnected: @escaping () -> Void
+    ) async -> Bool {
+        let previous = lastPairing
+        let box = UncheckedBox(device)
+        let task = Task {
+            _ = await previous?.value
+            guard !Task.isCancelled else { return false }
+            return await pairNow(box.value, onConnected: onConnected)
+        }
+        lastPairing = task
+        return await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+    }
+
+    /// Pairs, stopping early if the task is cancelled (the monitor was unplugged meanwhile).
+    private func pairNow(
         _ device: IOBluetoothDevice, onConnected: @escaping () -> Void
     ) async -> Bool {
         let slot = PairingSlot()
