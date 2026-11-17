@@ -14,6 +14,12 @@ final class PolyApp: NSObject, NSApplicationDelegate {
         options: .userInitiatedAllowingIdleSystemSleep, reason: "Handing accessories over when monitors change")
 
     static func main() {
+        // `scripts/diagnostics.sh`: write every Mac's journal to a folder and quit, touching nothing.
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--export-diagnostics"), index + 1 < arguments.count {
+            Journal.export(to: URL(fileURLWithPath: arguments[index + 1], isDirectory: true))
+            exit(0)
+        }
         let app = NSApplication.shared
         let delegate = PolyApp()
         app.delegate = delegate
@@ -21,6 +27,7 @@ final class PolyApp: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Journal.shared.start()
         let menu = StatusMenu(switcher: switcher, loginItem: loginItem, updater: updater)
         statusMenu = menu
         switcher.onChange = { [weak menu] in menu?.refresh() }

@@ -106,7 +106,7 @@ final class Wakefulness {
             let status = IOPMAssertionCreateWithName(
                 kIOPMAssertionTypePreventUserIdleSystemSleep as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
                 "Poly: a monitor with its keyboard and mouse is plugged in" as CFString, &idleSleepAssertion)
-            Log.switcher.info("preventing idle sleep: \(status == kIOReturnSuccess, privacy: .public)")
+            Log.switcher.info("preventing idle sleep: \(status == kIOReturnSuccess)")
         } else if !prevent, idleSleepAssertion != 0 {
             IOPMAssertionRelease(idleSleepAssertion)
             idleSleepAssertion = 0
@@ -120,6 +120,6 @@ final class Wakefulness {
         var assertion: IOPMAssertionID = 0
         let status = IOPMAssertionDeclareUserActivity(
             "Poly: connecting the monitor's keyboard and mouse" as CFString, kIOPMUserActiveLocal, &assertion)
-        Log.switcher.info("waking the display: \(status == kIOReturnSuccess, privacy: .public)")
+        Log.switcher.info("waking the display: \(status == kIOReturnSuccess)")
     }
 }

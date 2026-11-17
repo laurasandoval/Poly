@@ -77,9 +77,9 @@ final class Bluetooth: NSObject {
         let now = cabledAddresses()
         for address in onCable.subtracting(now) {
             leftCable[address] = .now
-            Log.bluetooth.info("\(address, privacy: .public) left its cable")
+            Log.bluetooth.info("\(address) left its cable")
         }
-        for address in now.subtracting(onCable) { Log.bluetooth.info("\(address, privacy: .public) is on a cable") }
+        for address in now.subtracting(onCable) { Log.bluetooth.info("\(address) is on a cable") }
         onCable = now
         onConnectionsChanged?()
     }
@@ -143,17 +143,17 @@ final class Bluetooth: NSObject {
 
         if device.isPaired() {
             let status = await openConnection(device)
-            Log.bluetooth.info("\(address, privacy: .public) bonded, connect: \(Log.hex(status), privacy: .public)")
+            Log.bluetooth.info("\(address) bonded, connect: \(Log.hex(status))")
             if status == kIOReturnSuccess, await waitUntilConnected(device, seconds: 5) { return .connected }
             // The bond is stale (another Mac paired it since) or the accessory is away. Only re-pair
             // when it answers; forgetting a sleeping accessory gains nothing.
             let answer = await remoteNameRequest(device)
-            Log.bluetooth.info("\(address, privacy: .public) answer check: \(Log.hex(answer), privacy: .public)")
+            Log.bluetooth.info("\(address) answer check: \(Log.hex(answer))")
             guard answer == kIOReturnSuccess else { return .unreachable }
             // Just off a cable, an accessory reconnects over Bluetooth by itself with the bond macOS
             // made through the cable; that bond is not stale. Let it, and look again later.
             if let off = leftCable[address], Date.now.timeIntervalSince(off) < 10 {
-                Log.bluetooth.info("\(address, privacy: .public) just left a cable; not re-pairing")
+                Log.bluetooth.info("\(address) just left a cable; not re-pairing")
                 return .unreachable
             }
             if device.isConnected() || isCabled(address) { return .connected }
@@ -164,16 +164,16 @@ final class Bluetooth: NSObject {
         } else {
             // Pairing something that is not listening hangs for a minute; ask first.
             let answer = await remoteNameRequest(device)
-            Log.bluetooth.info("\(address, privacy: .public) not bonded, answer check: \(Log.hex(answer), privacy: .public)")
+            Log.bluetooth.info("\(address) not bonded, answer check: \(Log.hex(answer))")
             guard answer == kIOReturnSuccess else { return .unreachable }
         }
 
         let paired = await pair(device, onConnected: onPaged)
-        Log.bluetooth.info("\(address, privacy: .public) pairing \(paired ? "succeeded" : "failed", privacy: .public)")
+        Log.bluetooth.info("\(address) pairing \(paired ? "succeeded" : "failed")")
         guard paired else { return .failed }
         if !device.isConnected() {
             let status = await openConnection(device)
-            Log.bluetooth.info("\(address, privacy: .public) connect after pairing: \(Log.hex(status), privacy: .public)")
+            Log.bluetooth.info("\(address) connect after pairing: \(Log.hex(status))")
         }
         return await waitUntilConnected(device, seconds: 5) ? .connected : .failed
     }
@@ -184,7 +184,7 @@ final class Bluetooth: NSObject {
         guard let device = device(address), device.isPaired() || device.isConnected() else { return }
         // On a cable it is in use right here; unpairing would only interrupt it.
         guard !isCabled(address) else {
-            return Log.bluetooth.info("\(address, privacy: .public) is on a cable; not forgetting")
+            return Log.bluetooth.info("\(address) is on a cable; not forgetting")
         }
         operations += 1
         defer { operations -= 1 }
@@ -197,7 +197,7 @@ final class Bluetooth: NSObject {
                 box.value.closeConnection()
             }
         }
-        Log.bluetooth.info("\(address, privacy: .public) forgotten, still paired: \(device.isPaired(), privacy: .public)")
+        Log.bluetooth.info("\(address) forgotten, still paired: \(device.isPaired())")
     }
 
     /// Renames an accessory the way Bluetooth settings' Name field does, through IOBluetoothDevice's
@@ -380,7 +380,7 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
     func start() {
         let status = pair.start()
         guard status == kIOReturnSuccess else {
-            Log.bluetooth.error("pairing did not start: \(Log.hex(status), privacy: .public)")
+            Log.bluetooth.error("pairing did not start: \(Log.hex(status))")
             return finish(false)
         }
         // `devicePairingConnected:` does not come when the answer check has just brought the link
@@ -421,7 +421,7 @@ private final class Pairing: NSObject, IOBluetoothDevicePairDelegate {
     }
 
     nonisolated func devicePairingFinished(_ sender: Any!, error: IOReturn) {
-        Log.bluetooth.info("pairing finished: \(Log.hex(error), privacy: .public)")
+        Log.bluetooth.info("pairing finished: \(Log.hex(error))")
         onMainActor { self.finish(error == kIOReturnSuccess) }
     }
 

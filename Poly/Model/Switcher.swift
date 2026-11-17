@@ -230,7 +230,7 @@ final class Switcher {
     /// background wake of a closed MacBook being plugged in) the monitor can take a while to show up.
     private func didWake() {
         Log.switcher.info(
-            "woke; lid closed: \(Lid.isClosed, privacy: .public), lid sleeps: \(Lid.closingSleeps, privacy: .public)")
+            "woke; lid closed: \(Lid.isClosed), lid sleeps: \(Lid.closingSleeps)")
         sleeping = false
         holdReleasesUntil = .now.addingTimeInterval(15)
         holdClaimsUntil = .now.addingTimeInterval(1.5)
@@ -336,7 +336,7 @@ final class Switcher {
         let sleepingSoon = Lid.isClosed && Lid.closingSleeps
         let releaseAt = sleepingSoon ? .now : max(since.addingTimeInterval(2), holdReleasesUntil)
         guard releaseAt <= .now else { return reconcile(after: releaseAt.timeIntervalSinceNow + 0.1) }
-        Log.switcher.info("releasing accessories of \(monitor.name, privacy: .public) [\(monitor.id, privacy: .public)]")
+        Log.switcher.info("releasing accessories of \(monitor.name) [\(monitor.id)]")
         releases[monitor.id] = Task {
             await release(monitor.id)
             releases[monitor.id] = nil
@@ -389,7 +389,7 @@ final class Switcher {
             await withTaskCancellationHandler {
                 for (accessory, task) in attempts {
                     let result = await task.value
-                    Log.switcher.info("take \(accessory.name, privacy: .public): \(String(describing: result), privacy: .public)")
+                    Log.switcher.info("take \(accessory.name): \(String(describing: result))")
                     refreshConnected()
                     if result == .connected {
                         needsNudge.remove(accessory.address)
@@ -432,7 +432,7 @@ final class Switcher {
             let listed = Set(Displays.attached().map(\.id))
             let attachedIDs: Set<String> = lidClosed ? [] : listed
             Log.switcher.info(
-                "about to sleep; lid closed: \(lidClosed, privacy: .public), lid sleeps: \(Lid.closingSleeps, privacy: .public), listed: \(listed.sorted().joined(separator: ", "), privacy: .public)"
+                "about to sleep; lid closed: \(lidClosed), lid sleeps: \(Lid.closingSleeps), listed: \(listed.sorted().joined(separator: ", "))"
             )
             for monitor in monitors where !attachedIDs.contains(monitor.id) {
                 if Task.isCancelled { return }
@@ -524,7 +524,7 @@ final class Switcher {
                     link(info, to: monitor)
                 } else {
                     declined[monitor.id, default: []].insert(info.address)
-                    Log.switcher.info("not linking \(info.name, privacy: .public) [\(info.address, privacy: .public)]")
+                    Log.switcher.info("not linking \(info.name) [\(info.address)]")
                 }
             }
             reconcile()
@@ -557,7 +557,7 @@ final class Switcher {
                     accessories: [accessory]))
         }
         monitors = updated
-        Log.switcher.info("linked \(info.name, privacy: .public) [\(info.address, privacy: .public)] to \(attached.name, privacy: .public) [\(attached.id, privacy: .public)]")
+        Log.switcher.info("linked \(info.name) [\(info.address)] to \(attached.name) [\(attached.id)]")
     }
 
     /// Keeps an accessory's name current when it is renamed in Bluetooth settings.

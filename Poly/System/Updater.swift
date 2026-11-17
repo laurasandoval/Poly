@@ -41,7 +41,7 @@ final class Updater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         // Sparkle calls its delegate on the main thread.
         nonisolated(unsafe) let handler = immediateInstallHandler
         MainActor.assumeIsolated {
-            Log.updates.info("downloaded \(version, privacy: .public); installing when quiet")
+            Log.updates.info("downloaded \(version); installing when quiet")
             install = handler
             installWhenQuiet()
         }
@@ -64,7 +64,7 @@ final class Updater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
         let nsError = error as NSError
         guard nsError.code != Int(SUError.noUpdateError.rawValue) else { return }
-        Log.updates.error("update stopped: \(nsError.localizedDescription, privacy: .public) (\(nsError.code, privacy: .public))")
+        Log.updates.error("update stopped: \(nsError.localizedDescription) (\(nsError.code))")
     }
 
     // MARK: Never interrupting
@@ -82,7 +82,7 @@ final class Updater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         guard !handleShowingUpdate else { return }
         let version = update.displayVersionString
         MainActor.assumeIsolated {
-            Log.updates.info("\(version, privacy: .public) needs the person to install; waiting for Check for Updates…")
+            Log.updates.info("\(version) needs the person to install; waiting for Check for Updates…")
         }
     }
 }
